@@ -1,9 +1,41 @@
 //! # skedge
 //!
 //! `skedge` is a single-process job scheduler.
+//!
+//! ```rust
+//! use skedge::{Scheduler, every, every_single};
+//! use std::time::Duration;
+//! use std::thread::sleep;
+//!
+//! fn job() {
+//!     println!("Hello!");
+//! }
+//!
+//! fn main() {
+//!    let mut schedule = Scheduler::new();
+//!
+//!     every(10).seconds().run(job, &schedule);
+//!     every(10).minutes().run(job, &schedule);
+//!     every_single().hour().run(job, &schedule);
+//!     every_single().day().at("10:30").run(job, &schedule);
+//!     every(5).to(10).minutes().run(job, &schedule);
+//!     every_single().monday().run(job, &schedule);
+//!     every_single().wednesday().at("13:15").run(job, &schedule);
+//!     every_single().minute().at(":17").run(job, &schedule);
+//!
+//!     loop {
+//!         schedule.run_pending();
+//!         sleep(Duration::from_secs(1));
+//!     }
+//! }
+//! ```
 
-use chrono::{prelude::*, Duration};
-use std::{cmp::Ordering, collections::HashSet};
+use chrono::{Duration, prelude::*};
+use log::*;
+use std::{
+    cmp::{Ord, Ordering},
+    collections::HashSet,
+};
 use thiserror::Error;
 
 /// Each interval value is an unsigned 32-bit integer
@@ -13,8 +45,11 @@ type Interval = u32;
 type Timestamp = DateTime<Utc>;
 
 /// A Job is a function with no parameters, returning nothing.
-// FIXME: how to support more options?
+// FIXME: how to support more options?  This is just to get it wired up.
 type JobFn = fn() -> ();
+
+/// A Tag is used to categorize a job.
+type Tag = String;
 
 // FIXME - this is probably not right
 #[derive(Debug, Error)]
@@ -27,18 +62,8 @@ enum SkedgeError {
     IntervalError,
 }
 
-/// A Tag is used to categorize a job.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct Tag(String);
-
-impl From<String> for Tag {
-    fn from(s: String) -> Self {
-        Self(s)
-    }
-}
-
 /// Jobs can be periodic over one of these units of time
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum TimeUnit {
     Seconds,
     Minutes,
@@ -51,10 +76,10 @@ enum TimeUnit {
 
 /// A Job is anything that can be scheduled to run periodically.
 ///
-/// Usually created by the `Scheduler::every`.
+/// Usually created by the `Scheduler#every` method.
 // NOTE - the python one holds a reference to the scheduler, this sounds problematic in Rust...
-#[derive(Debug, PartialEq)]
-pub(crate) struct Job {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Job {
     /// A quantity of a given time unit
     interval: Interval, // pause interval * unit between runs
     /// The actual function to execute
@@ -98,6 +123,11 @@ impl Job {
         unimplemented!()
     }
 
+    /// Check if the job has the given tag
+    fn has_tag(&self, tag: &str) -> bool {
+        unimplemented!()
+    }
+
     /// Specify a particular concrete time to run the job
     // FIXME: should this be impl Into<DateTime<Utc>>?
     pub fn at(&mut self, time_str: &str) {
@@ -122,8 +152,8 @@ impl Job {
         unimplemented!()
     }
 
-    /// Specify the work function that will execute when this job runs
-    pub fn run(self, job_fn: JobFn) -> Self {
+    /// Specify the work function that will execute when this job runs and add it to the schedule
+    pub fn run(self, job_fn: JobFn, scheduler: &mut Scheduler) -> Self {
         unimplemented!()
     }
 
@@ -145,12 +175,29 @@ impl Job {
 
 impl PartialOrd for Job {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        // Sorting is based on the next scheduled run
-        Some(self.next_run.cmp(&other.next_run))
+        Some(self.cmp(other))
     }
 }
 
+impl Ord for Job {
+    fn cmp(&self, other: &Self) -> Ordering {
+        // Sorting is based on the next scheduled run
+        self.next_run.cmp(&other.next_run)
+    }
+}
+
+/// Convenience function wrapping the Job constructor
+#[inline] pub fn every(interval: Interval) -> Job {
+    Job::new(interval)
+}
+
+/// Convenience function wrapping the Job constructor with a default of 1
+#[inline] pub fn every_single() -> Job {
+    Job::new(1)
+}
+
 /// A Scheduler creates jobs, tracks recorded jobs, and executes jobs.
+#[derive(Debug, Default)]
 pub struct Scheduler {
     /// The currently scheduled lob list
     jobs: Vec<Job>,
@@ -159,28 +206,51 @@ pub struct Scheduler {
 impl Scheduler {
     /// Instantiate a Scheduler
     pub fn new() -> Self {
+        pretty_env_logger::init(); //hmmm, probably not here?
+
         Self::default()
     }
 
     /// Run all jobs that are scheduled to run.  Does NOT run missed jobs!
-    pub fn run_pending() {
-        unimplemented!()
+    pub fn run_pending(&self) {
+        let mut jobs_to_run: Vec<&Job> = self.jobs.iter().filter(|el| el.should_run()).collect();
+        jobs_to_run.sort();
+        for job in &jobs_to_run {
+            self.run_job(job);
+        }
     }
 
     /// Run all jobs, regardless of schedule.
-    fn run_all(&self, delay_seconds: Option<u32>) {
-        // if None, default to 0.
-        unimplemented!()
+    fn run_all(&self, delay_seconds: u32) {
+        debug!(
+            "Running all {} jobs with {}s delay",
+            self.jobs.len(),
+            delay_seconds
+        );
+        for job in &self.jobs {}
     }
 
     /// Get all jobs, optionally with a given tag.
-    fn get_jobs<'a>(&self, tag: Option<Tag>) -> &'a [Job] {
-        unimplemented!()
+    fn get_jobs(&self, tag: Option<Tag>) -> Vec<&Job> {
+        if let Some(t) = tag {
+            self.jobs
+                .iter()
+                .filter(|el| el.has_tag(&t))
+                .collect::<Vec<&Job>>()
+        } else {
+            self.jobs.iter().collect::<Vec<&Job>>()
+        }
     }
 
     /// Clear all jobs, optionally only with given tag.
-    fn clear(&self, tag: Option<Tag>) {
-        unimplemented!()
+    fn clear(&mut self, tag: Option<Tag>) {
+        if let Some(t) = tag {
+            debug!("Deleting all jobs tagged {}", t);
+            self.jobs.retain(|el| !el.has_tag(&t));
+        } else {
+            debug!("Deleting ALL jobs!!");
+            let _ = self.jobs.drain(..);
+        }
     }
 
     fn cancel_job(&self, job: &Job) {
@@ -188,26 +258,14 @@ impl Scheduler {
         unimplemented!()
     }
 
-    /// Schedule a new periodic Job
-    fn every(&self, interval: Interval) -> Job {
-        // NOTE - may need a separate fn that doesn't take an argument, defaulting to 1.
-        unimplemented!()
-    }
-
-    /// Private fn to run given job.
-    fn run_job(&self, job: Job) {
+    /// Run given job.
+    fn run_job(&self, job: &Job) {
         unimplemented!()
     }
 
     /// Property getter - number of seconds until next run.  None if no jobs scheduled
     fn idle_seconds(&self) -> Option<u32> {
         unimplemented!()
-    }
-}
-
-impl Default for Scheduler {
-    fn default() -> Self {
-        Self { jobs: Vec::new() }
     }
 }
 
