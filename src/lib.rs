@@ -14,14 +14,14 @@
 //! fn main() {
 //!    let mut schedule = Scheduler::new();
 //!
-//!     every(10).seconds().run(job, &schedule);
-//!     every(10).minutes().run(job, &schedule);
-//!     every_single().hour().run(job, &schedule);
-//!     every_single().day().at("10:30").run(job, &schedule);
-//!     every(5).to(10).minutes().run(job, &schedule);
-//!     every_single().monday().run(job, &schedule);
-//!     every_single().wednesday().at("13:15").run(job, &schedule);
-//!     every_single().minute().at(":17").run(job, &schedule);
+//!     every(10).seconds().run(&mut schedule, job);
+//!     every(10).minutes().run(&mut schedule, job);
+//!     every_single().hour().run(&mut schedule, job);
+//!     every_single().day().at("10:30").run(&mut schedule, job);
+//!     every(5).to(10).minutes().run(&mut schedule, job);
+//!     every_single().monday().run(&mut schedule, job);
+//!     every_single().wednesday().at("13:15").run(&mut schedule, job);
+//!     every_single().minute().at(":17").run(&mut schedule, job);
 //!
 //!     loop {
 //!         schedule.run_pending();
@@ -41,12 +41,18 @@ use thiserror::Error;
 /// Each interval value is an unsigned 32-bit integer
 type Interval = u32;
 
-/// Timestamps are stored in UTC
-type Timestamp = DateTime<Utc>;
+/// Timestamps are in the users local timezone
+type Timestamp = DateTime<Local>;
 
 /// A Job is a function with no parameters, returning nothing.
 // FIXME: how to support more options?  This is just to get it wired up.
+// Maybe a trait with
 type JobFn = fn() -> ();
+
+/// A job is anything that implements this trait
+trait Callable {
+    fn call(&self);
+}
 
 /// A Tag is used to categorize a job.
 type Tag = String;
@@ -130,14 +136,14 @@ impl Job {
 
     /// Specify a particular concrete time to run the job
     // FIXME: should this be impl Into<DateTime<Utc>>?
-    pub fn at(&mut self, time_str: &str) {
+    pub fn at(&mut self, time_str: &str) -> Self {
         unimplemented!()
     }
 
     /// Schedule the job to run at a regular randomized interval.
     ///
     /// E.g. every(3).to(6).seconds
-    pub fn to(&mut self, latest: Interval) {
+    pub fn to(&mut self, latest: Interval) -> Self {
         unimplemented!()
     }
 
@@ -148,12 +154,12 @@ impl Job {
     /// if the current time is after until_time. This latter case can happen when the
     /// the job was scheduled to run before until_time, but runs after until_time.
     /// If until_time is a moment in the past, we should get a ScheduleValueError.
-    pub fn until(&mut self, until_time: impl Into<Timestamp>) {
+    pub fn until(&mut self, until_time: impl Into<Timestamp>) -> Self {
         unimplemented!()
     }
 
     /// Specify the work function that will execute when this job runs and add it to the schedule
-    pub fn run(self, job_fn: JobFn, scheduler: &mut Scheduler) -> Self {
+    pub fn run(self, scheduler: &mut Scheduler, job_fn: JobFn) -> Self {
         unimplemented!()
     }
 
@@ -164,6 +170,111 @@ impl Job {
 
     /// Run this job and immediately reschedule it
     pub fn execute(&self) {
+        unimplemented!()
+    }
+
+    /// Set single second mode
+    pub fn second(&mut self) -> Self {
+        unimplemented!()
+    }
+
+    /// Set seconds mode
+    pub fn seconds(&mut self) -> Self {
+        unimplemented!()
+    }
+
+    /// Set single minute mode
+    pub fn minute(&mut self) -> Self {
+        unimplemented!()
+    }
+
+    /// Set minutes mode
+    pub fn minutes(&mut self) -> Self {
+        unimplemented!()
+    }
+
+    /// Set single hour mode
+    pub fn hour(&mut self) -> Self {
+        unimplemented!()
+    }
+
+    /// Set hours mode
+    pub fn hours(&mut self) -> Self {
+        unimplemented!()
+    }
+
+    /// Set single day mode
+    pub fn day(&mut self) -> Self {
+        unimplemented!()
+    }
+
+    /// Set days mode
+    pub fn days(&mut self) -> Self {
+        unimplemented!()
+    }
+
+    /// Set single week mode
+    pub fn week(&mut self) -> Self {
+        unimplemented!()
+    }
+
+    /// Set weeks mode
+    pub fn weeks(&mut self) -> Self {
+        unimplemented!()
+    }
+
+    /// Set single month mode
+    pub fn month(&mut self) -> Self {
+        unimplemented!()
+    }
+
+    /// Set months mode
+    pub fn months(&mut self) -> Self {
+        unimplemented!()
+    }
+
+    /// Set single year mode
+    pub fn year(&mut self) -> Self {
+        unimplemented!()
+    }
+
+    /// Set years mode
+    pub fn years(&mut self) -> Self {
+        unimplemented!()
+    }
+
+    /// Set weekly mode on Monday
+    pub fn monday(&mut self) -> Self {
+        unimplemented!()
+    }
+
+    /// Set weekly mode on Tuesday
+    pub fn tuesday(&mut self) -> Self {
+        unimplemented!()
+    }
+
+    /// Set weekly mode on Wednesday
+    pub fn wednesday(&mut self) -> Self {
+        unimplemented!()
+    }
+
+    /// Set weekly mode on Thursday
+    pub fn thursday(&mut self) -> Self {
+        unimplemented!()
+    }
+
+    /// Set weekly mode on Friday
+    pub fn friday(&mut self) -> Self {
+        unimplemented!()
+    }
+
+    /// Set weekly mode on Saturday
+    pub fn saturday(&mut self) -> Self {
+        unimplemented!()
+    }
+
+    /// Set weekly mode on Sunday
+    pub fn sunday(&mut self) -> Self {
         unimplemented!()
     }
 
@@ -206,7 +317,7 @@ pub struct Scheduler {
 impl Scheduler {
     /// Instantiate a Scheduler
     pub fn new() -> Self {
-        pretty_env_logger::init(); //hmmm, probably not here?
+        pretty_env_logger::init(); //FIXME hmmm, probably not here?
 
         Self::default()
     }
@@ -255,12 +366,6 @@ impl Scheduler {
 
     fn cancel_job(&self, job: &Job) {
         // FIXME: What should "job" actually be?
-        unimplemented!()
-    }
-
-    /// Schedule a new periodic Job
-    fn every(&self, interval: Interval) -> Job {
-        // NOTE - may need a separate fn that doesn't take an argument, defaulting to 1.
         unimplemented!()
     }
 
