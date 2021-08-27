@@ -258,6 +258,12 @@ impl Scheduler {
         unimplemented!()
     }
 
+    /// Schedule a new periodic Job
+    fn every(&self, interval: Interval) -> Job {
+        // NOTE - may need a separate fn that doesn't take an argument, defaulting to 1.
+        unimplemented!()
+    }
+
     /// Run given job.
     fn run_job(&self, job: &Job) {
         unimplemented!()
