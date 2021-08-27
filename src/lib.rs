@@ -11,17 +11,17 @@
 //!     println!("Hello!");
 //! }
 //!
-//! fn main() {
+//! fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!    let mut schedule = Scheduler::new();
 //!
-//!     every(10).seconds().run(&mut schedule, job);
-//!     every(10).minutes().run(&mut schedule, job);
-//!     every_single().hour().run(&mut schedule, job);
-//!     every_single().day().at("10:30").run(&mut schedule, job);
-//!     every(5).to(10).minutes().run(&mut schedule, job);
-//!     every_single().monday().run(&mut schedule, job);
-//!     every_single().wednesday().at("13:15").run(&mut schedule, job);
-//!     every_single().minute().at(":17").run(&mut schedule, job);
+//!     every(10).seconds()?.run(&mut schedule, job);
+//!     every(10).minutes()?.run(&mut schedule, job);
+//!     every_single().hour()?.run(&mut schedule, job);
+//!     every_single().day()?.at("10:30")?.run(&mut schedule, job);
+//!     every(5).to(10)?.minutes()?.run(&mut schedule, job);
+//!     every_single().monday()?.run(&mut schedule, job);
+//!     every_single().wednesday()?.at("13:15")?.run(&mut schedule, job);
+//!     every_single().minute()?.at(":17")?.run(&mut schedule, job);
 //!
 //!     loop {
 //!         schedule.run_pending();
@@ -30,13 +30,15 @@
 //! }
 //! ```
 
-use chrono::{Duration, prelude::*};
+use chrono::{prelude::*, Duration};
 use log::*;
 use std::{
     cmp::{Ord, Ordering},
     collections::HashSet,
 };
-use thiserror::Error;
+
+mod error;
+use error::Result;
 
 /// Each interval value is an unsigned 32-bit integer
 type Interval = u32;
@@ -56,17 +58,6 @@ trait Callable {
 
 /// A Tag is used to categorize a job.
 type Tag = String;
-
-// FIXME - this is probably not right
-#[derive(Debug, Error)]
-enum SkedgeError {
-    #[error("Basic error")]
-    ScheduleError,
-    #[error("Value error")]
-    ScheduleValueError,
-    #[error("An improper interval was used")]
-    IntervalError,
-}
 
 /// Jobs can be periodic over one of these units of time
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -136,14 +127,14 @@ impl Job {
 
     /// Specify a particular concrete time to run the job
     // FIXME: should this be impl Into<DateTime<Utc>>?
-    pub fn at(&mut self, time_str: &str) -> Self {
+    pub fn at(&mut self, time_str: &str) -> Result<Self> {
         unimplemented!()
     }
 
     /// Schedule the job to run at a regular randomized interval.
     ///
     /// E.g. every(3).to(6).seconds
-    pub fn to(&mut self, latest: Interval) -> Self {
+    pub fn to(&mut self, latest: Interval) -> Result<Self> {
         unimplemented!()
     }
 
@@ -154,12 +145,12 @@ impl Job {
     /// if the current time is after until_time. This latter case can happen when the
     /// the job was scheduled to run before until_time, but runs after until_time.
     /// If until_time is a moment in the past, we should get a ScheduleValueError.
-    pub fn until(&mut self, until_time: impl Into<Timestamp>) -> Self {
+    pub fn until(&mut self, until_time: impl Into<Timestamp>) -> Result<Self> {
         unimplemented!()
     }
 
     /// Specify the work function that will execute when this job runs and add it to the schedule
-    pub fn run(self, scheduler: &mut Scheduler, job_fn: JobFn) -> Self {
+    pub fn run(self, scheduler: &mut Scheduler, job_fn: JobFn) -> Result<Self> {
         unimplemented!()
     }
 
@@ -174,107 +165,107 @@ impl Job {
     }
 
     /// Set single second mode
-    pub fn second(&mut self) -> Self {
+    pub fn second(&mut self) -> Result<Self> {
         unimplemented!()
     }
 
     /// Set seconds mode
-    pub fn seconds(&mut self) -> Self {
+    pub fn seconds(&mut self) -> Result<Self> {
         unimplemented!()
     }
 
     /// Set single minute mode
-    pub fn minute(&mut self) -> Self {
+    pub fn minute(&mut self) -> Result<Self> {
         unimplemented!()
     }
 
     /// Set minutes mode
-    pub fn minutes(&mut self) -> Self {
+    pub fn minutes(&mut self) -> Result<Self> {
         unimplemented!()
     }
 
     /// Set single hour mode
-    pub fn hour(&mut self) -> Self {
+    pub fn hour(&mut self) -> Result<Self> {
         unimplemented!()
     }
 
     /// Set hours mode
-    pub fn hours(&mut self) -> Self {
+    pub fn hours(&mut self) -> Result<Self> {
         unimplemented!()
     }
 
     /// Set single day mode
-    pub fn day(&mut self) -> Self {
+    pub fn day(&mut self) -> Result<Self> {
         unimplemented!()
     }
 
     /// Set days mode
-    pub fn days(&mut self) -> Self {
+    pub fn days(&mut self) -> Result<Self> {
         unimplemented!()
     }
 
     /// Set single week mode
-    pub fn week(&mut self) -> Self {
+    pub fn week(&mut self) -> Result<Self> {
         unimplemented!()
     }
 
     /// Set weeks mode
-    pub fn weeks(&mut self) -> Self {
+    pub fn weeks(&mut self) -> Result<Self> {
         unimplemented!()
     }
 
     /// Set single month mode
-    pub fn month(&mut self) -> Self {
+    pub fn month(&mut self) -> Result<Self> {
         unimplemented!()
     }
 
     /// Set months mode
-    pub fn months(&mut self) -> Self {
+    pub fn months(&mut self) -> Result<Self> {
         unimplemented!()
     }
 
     /// Set single year mode
-    pub fn year(&mut self) -> Self {
+    pub fn year(&mut self) -> Result<Self> {
         unimplemented!()
     }
 
     /// Set years mode
-    pub fn years(&mut self) -> Self {
+    pub fn years(&mut self) -> Result<Self> {
         unimplemented!()
     }
 
     /// Set weekly mode on Monday
-    pub fn monday(&mut self) -> Self {
+    pub fn monday(&mut self) -> Result<Self> {
         unimplemented!()
     }
 
     /// Set weekly mode on Tuesday
-    pub fn tuesday(&mut self) -> Self {
+    pub fn tuesday(&mut self) -> Result<Self> {
         unimplemented!()
     }
 
     /// Set weekly mode on Wednesday
-    pub fn wednesday(&mut self) -> Self {
+    pub fn wednesday(&mut self) -> Result<Self> {
         unimplemented!()
     }
 
     /// Set weekly mode on Thursday
-    pub fn thursday(&mut self) -> Self {
+    pub fn thursday(&mut self) -> Result<Self> {
         unimplemented!()
     }
 
     /// Set weekly mode on Friday
-    pub fn friday(&mut self) -> Self {
+    pub fn friday(&mut self) -> Result<Self> {
         unimplemented!()
     }
 
     /// Set weekly mode on Saturday
-    pub fn saturday(&mut self) -> Self {
+    pub fn saturday(&mut self) -> Result<Self> {
         unimplemented!()
     }
 
     /// Set weekly mode on Sunday
-    pub fn sunday(&mut self) -> Self {
+    pub fn sunday(&mut self) -> Result<Self> {
         unimplemented!()
     }
 
@@ -298,12 +289,14 @@ impl Ord for Job {
 }
 
 /// Convenience function wrapping the Job constructor
-#[inline] pub fn every(interval: Interval) -> Job {
+#[inline]
+pub fn every(interval: Interval) -> Job {
     Job::new(interval)
 }
 
 /// Convenience function wrapping the Job constructor with a default of 1
-#[inline] pub fn every_single() -> Job {
+#[inline]
+pub fn every_single() -> Job {
     Job::new(1)
 }
 
