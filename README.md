@@ -4,7 +4,7 @@ Rust single-process scheduling.  Inspired by [`schedule`](https://github.com/dba
 
 ## Usage
 
-Don't (yet).  But eventually:
+Don't.  But eventually:
 
 ```rust
 use skedge::{Scheduler, every, every_single};
@@ -15,18 +15,18 @@ fn job() {
     println!("Hello!");
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
    let mut schedule = Scheduler::new();
 
-    every(10).seconds().run(job, &schedule);
-    every(10).minutes().run(job, &schedule);
-    every_single().hour().run(job, &schedule);
-    every_single().day().at("10:30").run(job, &schedule);
-    every(5).to(10).minutes().run(job, &schedule);
-    every_single().monday().run(job, &schedule);
-    every_single().wednesday().at("13:15").run(job, &schedule);
-    every_single().minute().at(":17").run(job, &schedule);
-    
+    every(10).seconds()?.run(&mut schedule, job);
+    every(10).minutes()?.run(&mut schedule, job);
+    every_single().hour()?.run(&mut schedule, job);
+    every_single().day()?.at("10:30")?.run(&mut schedule, job);
+    every(5).to(10)?.minutes()?.run(&mut schedule, job);
+    every_single().monday()?.run(&mut schedule, job);
+    every_single().wednesday()?.at("13:15")?.run(&mut schedule, job);
+    every_single().minute()?.at(":17")?.run(&mut schedule, job);
+
     loop {
         schedule.run_pending();
         sleep(Duration::from_secs(1));
