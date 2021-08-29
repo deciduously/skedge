@@ -117,12 +117,17 @@ impl Job {
 
     /// Tag the job with one or more unique identifiers
     pub fn tag(&mut self, tags: Vec<impl Into<Tag>>) {
-        unimplemented!()
+        for t in tags {
+            let new_tag = t.into();
+            if !self.tags.contains(&new_tag) {
+                self.tags.insert(new_tag);
+            }
+        }
     }
 
     /// Check if the job has the given tag
     fn has_tag(&self, tag: &str) -> bool {
-        unimplemented!()
+        self.tags.contains(tag)
     }
 
     /// Specify a particular concrete time to run the job
@@ -159,8 +164,8 @@ impl Job {
         unimplemented!()
     }
 
-    /// Run this job and immediately reschedule it
-    pub fn execute(&self) {
+    /// Run this job and immediately reschedule it, returning true.  If job should cancel, return false
+    pub fn execute(&self) -> bool {
         unimplemented!()
     }
 
@@ -288,13 +293,17 @@ impl Ord for Job {
     }
 }
 
-/// Convenience function wrapping the Job constructor
+/// Convenience function wrapping the Job constructor.
+///
+/// E.g.: `every(10).seconds()?.run(&schedule, job)`;
 #[inline]
 pub fn every(interval: Interval) -> Job {
     Job::new(interval)
 }
 
-/// Convenience function wrapping the Job constructor with a default of 1
+/// Convenience function wrapping the Job constructor with a default of 1.
+///
+/// Equivalent to `every(1)`.
 #[inline]
 pub fn every_single() -> Job {
     Job::new(1)
@@ -364,7 +373,10 @@ impl Scheduler {
 
     /// Run given job.
     fn run_job(&self, job: &Job) {
-        unimplemented!()
+        let keep_going = job.execute();
+        if !keep_going {
+            self.cancel_job(job);
+        }
     }
 
     /// Property getter - number of seconds until next run.  None if no jobs scheduled
@@ -375,8 +387,5 @@ impl Scheduler {
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
+    // TODO: add unit tests!
 }
