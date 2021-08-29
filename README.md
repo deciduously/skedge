@@ -49,5 +49,6 @@ Clone this repo.
 * [chrono](https://github.com/chronotope/chrono) - Date and time handling
 * [log](https://github.com/rust-lang/log) - Logging
 * [pretty_env_logger](https://github.com/seanmonstar/pretty-env-logger) - Pretty logging
+* [lazy_static](https://github.com/rust-lang-nursery/lazy-static.rs) - Lazily evaluated statics
 * [regex](https://github.com/rust-lang/regex) - Regular expressions
 * [thiserror](https://github.com/dtolnay/thiserror) - Error derive macro
