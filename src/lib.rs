@@ -35,10 +35,11 @@ use log::*;
 use std::{
     cmp::{Ord, Ordering},
     collections::HashSet,
+    fmt,
 };
 
 mod error;
-use error::Result;
+use error::*;
 
 /// Each interval value is an unsigned 32-bit integer
 type Interval = u32;
@@ -46,14 +47,48 @@ type Interval = u32;
 /// Timestamps are in the users local timezone
 type Timestamp = DateTime<Local>;
 
-/// A Job is a function with no parameters, returning nothing.
-// FIXME: how to support more options?  This is just to get it wired up.
-// Maybe a trait with
-type JobFn = fn() -> ();
-
 /// A job is anything that implements this trait
-trait Callable {
+// FIXME: This doesn't work yet
+pub trait Callable: fmt::Debug {
+    /// Execute this callable
     fn call(&self);
+    /// Get the name of this callable
+    fn name(&self) -> &str;
+}
+
+impl PartialEq for dyn Callable {
+    fn eq(&self, other: &Self) -> bool {
+        // Callable objects are equal if their names are equal
+        // FIXME: this seems fishy
+        self.name() == other.name()
+    }
+}
+
+impl Eq for dyn Callable {}
+
+/// A named callable function taking no parameters and returning nothing.
+#[derive(Debug)]
+pub struct UnitToUnit {
+    name: String,
+    work: fn() -> (),
+}
+
+impl UnitToUnit {
+    pub fn new(name: &str, work: fn() -> ()) -> Self {
+        Self {
+            name: name.into(),
+            work,
+        }
+    }
+}
+
+impl Callable for UnitToUnit {
+    fn call(&self) {
+        (self.work)();
+    }
+    fn name(&self) -> &str {
+        &self.name
+    }
 }
 
 /// A Tag is used to categorize a job.
@@ -61,26 +96,41 @@ type Tag = String;
 
 /// Jobs can be periodic over one of these units of time
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum TimeUnit {
-    Seconds,
-    Minutes,
-    Hours,
-    Days,
-    Weeks,
-    Months,
-    Years,
+pub enum TimeUnit {
+    Second,
+    Minute,
+    Hour,
+    Day,
+    Week,
+    Month,
+    Year,
+}
+
+impl fmt::Display for TimeUnit {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use TimeUnit::*;
+        let s = match self {
+            Second => "second",
+            Minute => "minute",
+            Hour => "hour",
+            Day => "day",
+            Week => "week",
+            Month => "month",
+            Year => "year",
+        };
+        write!(f, "{}", s)
+    }
 }
 
 /// A Job is anything that can be scheduled to run periodically.
 ///
 /// Usually created by the `Scheduler#every` method.
-// NOTE - the python one holds a reference to the scheduler, this sounds problematic in Rust...
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Job {
     /// A quantity of a given time unit
     interval: Interval, // pause interval * unit between runs
     /// The actual function to execute
-    job_fn: Option<JobFn>,
+    job: Option<Box<dyn Callable>>,
     /// Tags used to group jobs
     tags: HashSet<Tag>,
     /// Unit of time described by intervals
@@ -103,7 +153,7 @@ impl Job {
     pub fn new(interval: Interval) -> Self {
         Self {
             interval,
-            job_fn: None,
+            job: None,
             tags: HashSet::new(),
             unit: None,
             at_time: None,
@@ -155,7 +205,9 @@ impl Job {
     }
 
     /// Specify the work function that will execute when this job runs and add it to the schedule
-    pub fn run(self, scheduler: &mut Scheduler, job_fn: JobFn) -> Result<Self> {
+    pub fn run(mut self, scheduler: &mut Scheduler, job: fn() -> ()) -> Result<Self> {
+        // FIXME how does job naming work?  without reflection?
+        self.job = Some(Box::new(UnitToUnit::new("job", job)));
         unimplemented!()
     }
 
@@ -170,73 +222,143 @@ impl Job {
     }
 
     /// Set single second mode
-    pub fn second(&mut self) -> Result<Self> {
-        unimplemented!()
+    pub fn second(self) -> Result<Self> {
+        if self.interval != 1 {
+            Err(interval_error(TimeUnit::Second))
+        } else {
+            self.seconds()
+        }
     }
 
     /// Set seconds mode
-    pub fn seconds(&mut self) -> Result<Self> {
-        unimplemented!()
+    pub fn seconds(mut self) -> Result<Self> {
+        let unit = TimeUnit::Second;
+        if let Some(u) = self.unit {
+            Err(unit_error(unit, u))
+        } else {
+            self.unit = Some(unit);
+            Ok(self)
+        }
     }
 
     /// Set single minute mode
-    pub fn minute(&mut self) -> Result<Self> {
-        unimplemented!()
+    pub fn minute(self) -> Result<Self> {
+        if self.interval != 1 {
+            Err(interval_error(TimeUnit::Minute))
+        } else {
+            self.minutes()
+        }
     }
 
     /// Set minutes mode
-    pub fn minutes(&mut self) -> Result<Self> {
-        unimplemented!()
+    pub fn minutes(mut self) -> Result<Self> {
+        let unit = TimeUnit::Minute;
+        if let Some(u) = self.unit {
+            Err(unit_error(unit, u))
+        } else {
+            self.unit = Some(unit);
+            Ok(self)
+        }
     }
 
     /// Set single hour mode
-    pub fn hour(&mut self) -> Result<Self> {
-        unimplemented!()
+    pub fn hour(self) -> Result<Self> {
+        if self.interval != 1 {
+            Err(interval_error(TimeUnit::Hour))
+        } else {
+            self.hours()
+        }
     }
 
     /// Set hours mode
-    pub fn hours(&mut self) -> Result<Self> {
-        unimplemented!()
+    pub fn hours(mut self) -> Result<Self> {
+        let unit = TimeUnit::Hour;
+        if let Some(u) = self.unit {
+            Err(unit_error(unit, u))
+        } else {
+            self.unit = Some(unit);
+            Ok(self)
+        }
     }
 
     /// Set single day mode
-    pub fn day(&mut self) -> Result<Self> {
-        unimplemented!()
+    pub fn day(self) -> Result<Self> {
+        if self.interval != 1 {
+            Err(interval_error(TimeUnit::Day))
+        } else {
+            self.days()
+        }
     }
 
     /// Set days mode
-    pub fn days(&mut self) -> Result<Self> {
-        unimplemented!()
+    pub fn days(mut self) -> Result<Self> {
+        let unit = TimeUnit::Day;
+        if let Some(u) = self.unit {
+            Err(unit_error(unit, u))
+        } else {
+            self.unit = Some(unit);
+            Ok(self)
+        }
     }
 
     /// Set single week mode
-    pub fn week(&mut self) -> Result<Self> {
-        unimplemented!()
+    pub fn week(self) -> Result<Self> {
+        if self.interval != 1 {
+            Err(interval_error(TimeUnit::Week))
+        } else {
+            self.weeks()
+        }
     }
 
     /// Set weeks mode
-    pub fn weeks(&mut self) -> Result<Self> {
-        unimplemented!()
+    pub fn weeks(mut self) -> Result<Self> {
+        let unit = TimeUnit::Week;
+        if let Some(u) = self.unit {
+            Err(unit_error(unit, u))
+        } else {
+            self.unit = Some(unit);
+            Ok(self)
+        }
     }
 
     /// Set single month mode
-    pub fn month(&mut self) -> Result<Self> {
-        unimplemented!()
+    pub fn month(self) -> Result<Self> {
+        if self.interval != 1 {
+            Err(interval_error(TimeUnit::Month))
+        } else {
+            self.months()
+        }
     }
 
     /// Set months mode
-    pub fn months(&mut self) -> Result<Self> {
-        unimplemented!()
+    pub fn months(mut self) -> Result<Self> {
+        let unit = TimeUnit::Month;
+        if let Some(u) = self.unit {
+            Err(unit_error(unit, u))
+        } else {
+            self.unit = Some(unit);
+            Ok(self)
+        }
     }
 
     /// Set single year mode
-    pub fn year(&mut self) -> Result<Self> {
-        unimplemented!()
+    pub fn year(self) -> Result<Self> {
+        if self.interval != 1 {
+            Err(interval_error(TimeUnit::Year))
+        } else {
+            self.years()
+        }
     }
 
     /// Set years mode
-    pub fn years(&mut self) -> Result<Self> {
-        unimplemented!()
+    pub fn years(mut self) -> Result<Self> {
+        let unit = TimeUnit::Year;
+        if let Some(u) = self.unit {
+            Err(unit_error(unit, u))
+        } else {
+            self.unit = Some(unit);
+            Ok(self)
+        }
     }
 
     /// Set weekly mode on Monday
@@ -290,6 +412,22 @@ impl Ord for Job {
     fn cmp(&self, other: &Self) -> Ordering {
         // Sorting is based on the next scheduled run
         self.next_run.cmp(&other.next_run)
+    }
+}
+
+impl fmt::Display for Job {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let name = if self.job.is_none() {
+            "No Job"
+        } else {
+            let j = self.job.as_ref().unwrap();
+            j.name()
+        };
+        write!(
+            f,
+            "Job(interval={}, unit={:?}, run={}",
+            self.interval, self.unit, name
+        )
     }
 }
 
