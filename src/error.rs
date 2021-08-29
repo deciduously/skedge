@@ -13,7 +13,9 @@ pub enum SkedgeError {
     #[error("Cannot set {0}s mode, already using {1}s")]
     Unit(TimeUnit, TimeUnit),
     #[error("Scheduling jobs on {0} is only allowed for weekly jobs.  Using specific days on a job scheduled to run every 2 or more weeks is not supported")]
-    Weekday(chrono::Weekday),
+    Weekday(Weekday),
+    #[error("Cannot schedule {0} job, already scheduled for {1}")]
+    WeekdayCollision(Weekday, Weekday),
 }
 
 /// Construct a new Value error
@@ -34,6 +36,10 @@ pub(crate) fn interval_error(interval: TimeUnit) -> SkedgeError {
 /// Construct a new Weekday error
 pub(crate) fn weekday_error(weekday: Weekday) -> SkedgeError {
     SkedgeError::Weekday(weekday)
+}
+
+pub(crate) fn weekday_collision_error(intended: Weekday, existing: Weekday) -> SkedgeError {
+    SkedgeError::WeekdayCollision(intended, existing)
 }
 
 pub(crate) type Result<T> = std::result::Result<T, SkedgeError>;

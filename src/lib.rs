@@ -367,8 +367,12 @@ impl Job {
         if self.interval != 1 {
             Err(weekday_error(day))
         } else {
-            self.start_day = Some(day);
-            self.weeks()
+            if let Some(w) = self.start_day {
+                Err(weekday_collision_error(day, w))
+            } else {
+                self.start_day = Some(day);
+                self.weeks()
+            }
         }
     }
 
@@ -378,8 +382,12 @@ impl Job {
         if self.interval != 1 {
             Err(weekday_error(day))
         } else {
-            self.start_day = Some(day);
-            self.weeks()
+            if let Some(w) = self.start_day {
+                Err(weekday_collision_error(day, w))
+            } else {
+                self.start_day = Some(day);
+                self.weeks()
+            }
         }
     }
 
@@ -389,8 +397,12 @@ impl Job {
         if self.interval != 1 {
             Err(weekday_error(day))
         } else {
-            self.start_day = Some(day);
-            self.weeks()
+            if let Some(w) = self.start_day {
+                Err(weekday_collision_error(day, w))
+            } else {
+                self.start_day = Some(day);
+                self.weeks()
+            }
         }
     }
 
@@ -400,8 +412,12 @@ impl Job {
         if self.interval != 1 {
             Err(weekday_error(day))
         } else {
-            self.start_day = Some(day);
-            self.weeks()
+            if let Some(w) = self.start_day {
+                Err(weekday_collision_error(day, w))
+            } else {
+                self.start_day = Some(day);
+                self.weeks()
+            }
         }
     }
 
@@ -411,8 +427,12 @@ impl Job {
         if self.interval != 1 {
             Err(weekday_error(day))
         } else {
-            self.start_day = Some(day);
-            self.weeks()
+            if let Some(w) = self.start_day {
+                Err(weekday_collision_error(day, w))
+            } else {
+                self.start_day = Some(day);
+                self.weeks()
+            }
         }
     }
 
@@ -422,8 +442,12 @@ impl Job {
         if self.interval != 1 {
             Err(weekday_error(day))
         } else {
-            self.start_day = Some(day);
-            self.weeks()
+            if let Some(w) = self.start_day {
+                Err(weekday_collision_error(day, w))
+            } else {
+                self.start_day = Some(day);
+                self.weeks()
+            }
         }
     }
 
@@ -433,8 +457,12 @@ impl Job {
         if self.interval != 1 {
             Err(weekday_error(day))
         } else {
-            self.start_day = Some(day);
-            self.weeks()
+            if let Some(w) = self.start_day {
+                Err(weekday_collision_error(day, w))
+            } else {
+                self.start_day = Some(day);
+                self.weeks()
+            }
         }
     }
 
