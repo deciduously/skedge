@@ -31,7 +31,6 @@
 //! ```
 
 use chrono::{prelude::*, Duration};
-use core::time;
 use lazy_static::lazy_static;
 use log::*;
 use regex::Regex;
@@ -289,6 +288,7 @@ impl Job {
     pub fn run(mut self, scheduler: &mut Scheduler, job: fn() -> ()) {
         // FIXME how does job naming work?  without reflection?
         self.job = Some(Box::new(UnitToUnit::new("job", job)));
+        self.schedule_next_run();
         scheduler.add_job(self);
     }
 
