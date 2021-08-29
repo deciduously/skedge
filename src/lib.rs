@@ -362,38 +362,80 @@ impl Job {
     }
 
     /// Set weekly mode on Monday
-    pub fn monday(&mut self) -> Result<Self> {
-        unimplemented!()
+    pub fn monday(mut self) -> Result<Self> {
+        let day = Weekday::Mon;
+        if self.interval != 1 {
+            Err(weekday_error(day))
+        } else {
+            self.start_day = Some(day);
+            self.weeks()
+        }
     }
 
     /// Set weekly mode on Tuesday
-    pub fn tuesday(&mut self) -> Result<Self> {
-        unimplemented!()
+    pub fn tuesday(mut self) -> Result<Self> {
+        let day = Weekday::Tue;
+        if self.interval != 1 {
+            Err(weekday_error(day))
+        } else {
+            self.start_day = Some(day);
+            self.weeks()
+        }
     }
 
     /// Set weekly mode on Wednesday
-    pub fn wednesday(&mut self) -> Result<Self> {
-        unimplemented!()
+    pub fn wednesday(mut self) -> Result<Self> {
+        let day = Weekday::Wed;
+        if self.interval != 1 {
+            Err(weekday_error(day))
+        } else {
+            self.start_day = Some(day);
+            self.weeks()
+        }
     }
 
     /// Set weekly mode on Thursday
-    pub fn thursday(&mut self) -> Result<Self> {
-        unimplemented!()
+    pub fn thursday(mut self) -> Result<Self> {
+        let day = Weekday::Thu;
+        if self.interval != 1 {
+            Err(weekday_error(day))
+        } else {
+            self.start_day = Some(day);
+            self.weeks()
+        }
     }
 
     /// Set weekly mode on Friday
-    pub fn friday(&mut self) -> Result<Self> {
-        unimplemented!()
+    pub fn friday(mut self) -> Result<Self> {
+        let day = Weekday::Fri;
+        if self.interval != 1 {
+            Err(weekday_error(day))
+        } else {
+            self.start_day = Some(day);
+            self.weeks()
+        }
     }
 
     /// Set weekly mode on Saturday
-    pub fn saturday(&mut self) -> Result<Self> {
-        unimplemented!()
+    pub fn saturday(mut self) -> Result<Self> {
+        let day = Weekday::Sat;
+        if self.interval != 1 {
+            Err(weekday_error(day))
+        } else {
+            self.start_day = Some(day);
+            self.weeks()
+        }
     }
 
     /// Set weekly mode on Sunday
-    pub fn sunday(&mut self) -> Result<Self> {
-        unimplemented!()
+    pub fn sunday(mut self) -> Result<Self> {
+        let day = Weekday::Sun;
+        if self.interval != 1 {
+            Err(weekday_error(day))
+        } else {
+            self.start_day = Some(day);
+            self.weeks()
+        }
     }
 
     /// Compute the timestamp for the next run
