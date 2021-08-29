@@ -31,7 +31,10 @@
 //! ```
 
 use chrono::{prelude::*, Duration};
+use core::time;
+use lazy_static::lazy_static;
 use log::*;
+use regex::Regex;
 use std::{
     cmp::{Ord, Ordering},
     collections::HashSet,
@@ -129,6 +132,8 @@ impl fmt::Display for TimeUnit {
 pub struct Job {
     /// A quantity of a given time unit
     interval: Interval, // pause interval * unit between runs
+    /// Upper limit to interval for randomized job timing
+    latest: Option<Interval>,
     /// The actual function to execute
     job: Option<Box<dyn Callable>>,
     /// Tags used to group jobs
@@ -136,7 +141,7 @@ pub struct Job {
     /// Unit of time described by intervals
     unit: Option<TimeUnit>,
     /// Optional set time at which this job runs
-    at_time: Option<Timestamp>,
+    at_time: Option<NaiveTime>,
     /// Timestamp of last run
     last_run: Option<Timestamp>,
     /// Timestamp of next run
@@ -153,6 +158,7 @@ impl Job {
     pub fn new(interval: Interval) -> Self {
         Self {
             interval,
+            latest: None,
             job: None,
             tags: HashSet::new(),
             unit: None,
@@ -180,17 +186,92 @@ impl Job {
         self.tags.contains(tag)
     }
 
-    /// Specify a particular concrete time to run the job
-    // FIXME: should this be impl Into<DateTime<Utc>>?
-    pub fn at(&mut self, time_str: &str) -> Result<Self> {
-        unimplemented!()
+    /// Specify a particular concrete time to run the job.
+    ///
+    /// * Daily jobs: `HH:MM:SS` or `HH:MM`
+    ///
+    /// * Hourly jobs: `MM:SS` or `:MM`
+    ///
+    /// * Minute jobs: `:SS`
+    ///
+    /// Not supported on weekly, monthly, or yearly jobs.
+    pub fn at(mut self, time_str: &str) -> Result<Self> {
+        use TimeUnit::*;
+
+        // Validate time unit
+        if ![Week, Day, Hour, Minute].contains(&self.unit.unwrap_or(Year)) {
+            dbg!(self.unit);
+            return Err(SkedgeError::InvalidUnit);
+        }
+
+        // Validate time_str for set time unit
+        lazy_static! {
+            static ref DAILY_RE: Regex = Regex::new(r"^([0-2]\d:)?[0-5]\d:[0-5]\d$").unwrap();
+            static ref HOURLY_RE: Regex = Regex::new(r"^([0-5]\d)?:[0-5]\d$").unwrap();
+            static ref MINUTE_RE: Regex = Regex::new(r"^:[0-5]\d$").unwrap();
+        }
+
+        if self.unit == Some(Day) || self.start_day.is_some() {
+            if !DAILY_RE.is_match(time_str) {
+                return Err(SkedgeError::InvalidDailyAtStr);
+            }
+        }
+
+        if self.unit == Some(Hour) {
+            if !HOURLY_RE.is_match(time_str) {
+                return Err(SkedgeError::InvalidHourlyAtStr);
+            }
+        }
+
+        if self.unit == Some(Minute) {
+            if !MINUTE_RE.is_match(time_str) {
+                return Err(SkedgeError::InvalidMinuteAtStr);
+            }
+        }
+
+        // Parse time_str and store timestamp
+        let time_vals = time_str.split(':').collect::<Vec<&str>>();
+        let mut hour = 0;
+        let mut minute = 0;
+        let mut second = 0;
+        // ALl unwraps are safe - already validated by regex
+        let num_vals = time_vals.len();
+        if num_vals == 3 {
+            hour = time_vals[0].parse().unwrap();
+            minute = time_vals[1].parse().unwrap();
+            second = time_vals[2].parse().unwrap();
+        } else if num_vals == 2 && self.unit == Some(Minute) {
+            second = time_vals[1].parse().unwrap();
+        } else if num_vals == 2 && self.unit == Some(Hour) {
+            minute = time_vals[0].parse().unwrap();
+            second = time_vals[1].parse().unwrap();
+        } else {
+            hour = time_vals[0].parse().unwrap();
+            minute = time_vals[0].parse().unwrap();
+        }
+
+        if self.unit == Some(Day) || self.start_day.is_some() {
+            if !hour <= 23 {
+                return Err(invalid_hour_error(hour));
+            }
+        } else if self.unit == Some(Hour) {
+            hour = 0;
+        } else if self.unit == Some(Minute) {
+            hour = 0;
+            minute = 0;
+        }
+
+        // Store timestamp and return
+        self.at_time = Some(NaiveTime::from_hms(hour, minute, second));
+        Ok(self)
     }
 
     /// Schedule the job to run at a regular randomized interval.
     ///
     /// E.g. every(3).to(6).seconds
-    pub fn to(&mut self, latest: Interval) -> Result<Self> {
-        unimplemented!()
+    pub fn to(mut self, latest: Interval) -> Result<Self> {
+        self.latest = Some(latest);
+        Ok(self)
     }
 
     /// Schedule job to run until the specified moment.
@@ -205,15 +286,16 @@ impl Job {
     }
 
     /// Specify the work function that will execute when this job runs and add it to the schedule
-    pub fn run(mut self, scheduler: &mut Scheduler, job: fn() -> ()) -> Result<Self> {
+    pub fn run(mut self, scheduler: &mut Scheduler, job: fn() -> ()) {
         // FIXME how does job naming work?  without reflection?
         self.job = Some(Box::new(UnitToUnit::new("job", job)));
-        unimplemented!()
+        scheduler.add_job(self);
     }
 
     /// Check whether this job should be run now
     pub fn should_run(&self) -> bool {
-        unimplemented!()
+        assert!(self.next_run.is_some());
+        Local::now() >= self.next_run.unwrap()
     }
 
     /// Run this job and immediately reschedule it, returning true.  If job should cancel, return false
@@ -528,8 +610,12 @@ impl Scheduler {
     /// Instantiate a Scheduler
     pub fn new() -> Self {
         pretty_env_logger::init(); //FIXME hmmm, probably not here?
-
         Self::default()
+    }
+
+    /// Add a new job to the list
+    pub fn add_job(&mut self, job: Job) {
+        self.jobs.push(job);
     }
 
     /// Run all jobs that are scheduled to run.  Does NOT run missed jobs!
