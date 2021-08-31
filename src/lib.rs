@@ -4,11 +4,12 @@
 //!
 //! ```rust
 //! use skedge::{Scheduler, every, every_single};
+//! use chrono::Local;
 //! use std::time::Duration;
 //! use std::thread::sleep;
 //!
 //! fn job() {
-//!     println!("Hello!");
+//!     println!("Hello, it's {}!", Local::now());
 //! }
 //!
 //! fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -33,6 +34,7 @@
 use chrono::{prelude::*, Duration};
 use lazy_static::lazy_static;
 use log::*;
+use rand::prelude::*;
 use regex::Regex;
 use std::{
     cmp::{Ord, Ordering},
@@ -106,6 +108,23 @@ pub enum TimeUnit {
     Week,
     Month,
     Year,
+}
+
+impl TimeUnit {
+    /// Get a chrono::Duration from an interval based on time unit
+    fn duration(&self, interval: u32) -> Duration {
+        use TimeUnit::*;
+        let interval = interval as i64;
+        match self {
+            Second => Duration::seconds(interval),
+            Minute => Duration::minutes(interval),
+            Hour => Duration::hours(interval),
+            Day => Duration::days(interval),
+            Week => Duration::weeks(interval),
+            Month => Duration::weeks(interval * 4),
+            Year => Duration::weeks(interval * 52),
+        }
+    }
 }
 
 impl fmt::Display for TimeUnit {
@@ -285,23 +304,49 @@ impl Job {
     }
 
     /// Specify the work function that will execute when this job runs and add it to the schedule
-    pub fn run(mut self, scheduler: &mut Scheduler, job: fn() -> ()) {
+    pub fn run(mut self, scheduler: &mut Scheduler, job: fn() -> ()) -> Result<()> {
         // FIXME how does job naming work?  without reflection?
         self.job = Some(Box::new(UnitToUnit::new("job", job)));
-        self.schedule_next_run();
+        self.schedule_next_run()?;
         scheduler.add_job(self);
+        Ok(())
     }
 
     /// Check whether this job should be run now
     pub fn should_run(&self) -> bool {
-        assert!(self.next_run.is_some());
-        Local::now() >= self.next_run.unwrap()
+        self.next_run.is_some() && Local::now() >= self.next_run.unwrap()
     }
 
-    /// Run this job and immediately reschedule it, returning true.  If job should cancel, return false
-    pub fn execute(&self) -> bool {
-        unimplemented!()
+    /// Run this job and immediately reschedule it, returning true.  If job should cancel, return false.
+    ///
+    /// If the job's deadline has arrived already, the job does not run and returns false.
+    ///
+    /// If this execution causes the deadline to reach, it will run once and then return false.
+    // FIXME: if we support return values from job fns, this fn should return that.
+    pub fn execute(&mut self) -> Result<bool> {
+        if self.is_overdue(Local::now()) {
+            debug!("Deadline already reached, cancelling job {}", self);
+            return Ok(false);
+        }
+
+        debug!("Running job {}", self);
+        if self.job.is_none() {
+            debug!("No work scheduled, moving on...");
+            return Ok(true);
+        }
+        self.job.as_ref().unwrap().call();
+        self.last_run = Some(Local::now());
+        self.schedule_next_run()?;
+
+        if self.is_overdue(Local::now()) {
+            debug!("Execution went over deadline, cancelling job {}", self);
+            return Ok(false);
+        }
+
+        Ok(true)
     }
+
+    // TODO - the below can probably be refactored, lots of repeated code.
 
     /// Set single second mode
     pub fn second(self) -> Result<Self> {
@@ -549,8 +594,33 @@ impl Job {
     }
 
     /// Compute the timestamp for the next run
-    fn schedule_next_run(&mut self) {
-        unimplemented!()
+    fn schedule_next_run(&mut self) -> Result<()> {
+        // If "latest" is set, find the actual interval for this run, otherwise just used stored val
+        let interval = match self.latest {
+            Some(v) => {
+                if v < self.interval {
+                    return Err(SkedgeError::InvalidInterval);
+                }
+                thread_rng().gen_range(self.interval..v)
+            }
+            None => self.interval,
+        };
+
+        // Calculate period (Duration)
+        let period = self.unit.unwrap().duration(self.interval);
+        self.period = Some(period);
+        self.next_run = Some(Local::now() + period);
+
+        if self.start_day.is_some() {}
+
+        if self.at_time.is_some() {}
+
+        Ok(())
+    }
+
+    /// Check if given time is after the cancel_after time
+    fn is_overdue(&self, when: Timestamp) -> bool {
+        self.cancel_after.is_some() && when > self.cancel_after.unwrap()
     }
 }
 
@@ -619,11 +689,24 @@ impl Scheduler {
     }
 
     /// Run all jobs that are scheduled to run.  Does NOT run missed jobs!
-    pub fn run_pending(&self) {
-        let mut jobs_to_run: Vec<&Job> = self.jobs.iter().filter(|el| el.should_run()).collect();
-        jobs_to_run.sort();
-        for job in &jobs_to_run {
-            self.run_job(job);
+    pub fn run_pending(&mut self) {
+        //let mut jobs_to_run: Vec<&Job> = self.jobs.iter().filter(|el| el.should_run()).collect();
+        self.jobs.sort();
+        let mut to_remove = Vec::new();
+        for (idx, job) in self.jobs.iter_mut().enumerate() {
+            if job.should_run() {
+                let keep_going = job.execute().unwrap();
+                if !keep_going {
+                    debug!("Cancelling job {}", job);
+                    to_remove.push(idx);
+                }
+            }
+        }
+        // Remove any cancelled jobs
+        to_remove.sort_unstable();
+        to_remove.reverse();
+        for &idx in &to_remove {
+            self.jobs.remove(idx);
         }
     }
 
@@ -657,19 +740,6 @@ impl Scheduler {
         } else {
             debug!("Deleting ALL jobs!!");
             let _ = self.jobs.drain(..);
-        }
-    }
-
-    fn cancel_job(&self, job: &Job) {
-        // FIXME: What should "job" actually be?
-        unimplemented!()
-    }
-
-    /// Run given job.
-    fn run_job(&self, job: &Job) {
-        let keep_going = job.execute();
-        if !keep_going {
-            self.cancel_job(job);
         }
     }
 

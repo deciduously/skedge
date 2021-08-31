@@ -10,6 +10,8 @@ pub enum SkedgeError {
     Interval(TimeUnit),
     #[error("Cannot set {0}s mode, already using {1}s")]
     Unit(TimeUnit, TimeUnit),
+    #[error("Latest val is greater than interval val")]
+    InvalidInterval,
     #[error("Invalid unit (valid units are `days`, `hours`, and `minutes`)")]
     InvalidUnit,
     #[error("Invalid hour ({0} is not between 0 and 23)")]
