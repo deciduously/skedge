@@ -1,10 +1,27 @@
 [package]
 name = "skedge"
-version = "0.1.0"
+description = "Ergonomic single-process job scheduling for Rust programs."
+version = "0.0.2"
 edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+authors = ["Ben Lovy <ben@deciduously.com>"]
+documentation = "https://docs.rs/skedge"
+homepage = "https://crates.io/crates/skedge"
+include = ["**/*.rs", "Cargo.toml"]
+keywords = ["utilities", "scheduling"]
+license = "BSD-3-Clause"
+readme = "README.md"
+repository = "https://github.com/deciduously/skedge"
 
 [dependencies]
 
+chrono = "0.4"
+log = "0.4"
+pretty_env_logger = "0.4"
+lazy_static = "1.4"
+rand = "0.8"
+regex = "1.5"
 thiserror = "1"
+
+[profile]
+[profile.release]
+lto = true
