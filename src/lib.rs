@@ -52,11 +52,17 @@ type Interval = u32;
 /// Timestamps are in the users local timezone
 type Timestamp = DateTime<Local>;
 
+lazy_static! {
+    // Regexes for validating `.at()` strings are only computed once
+    static ref DAILY_RE: Regex = Regex::new(r"^([0-2]\d:)?[0-5]\d:[0-5]\d$").unwrap();
+    static ref HOURLY_RE: Regex = Regex::new(r"^([0-5]\d)?:[0-5]\d$").unwrap();
+    static ref MINUTE_RE: Regex = Regex::new(r"^:[0-5]\d$").unwrap();
+}
+
 /// A job is anything that implements this trait
-// FIXME: This doesn't work yet
 pub trait Callable: fmt::Debug {
     /// Execute this callable
-    fn call(&self);
+    fn call(&self) -> Option<bool>;
     /// Get the name of this callable
     fn name(&self) -> &str;
 }
@@ -88,8 +94,9 @@ impl UnitToUnit {
 }
 
 impl Callable for UnitToUnit {
-    fn call(&self) {
+    fn call(&self) -> Option<bool> {
         (self.work)();
+        None
     }
     fn name(&self) -> &str {
         &self.name
@@ -224,28 +231,16 @@ impl Job {
         }
 
         // Validate time_str for set time unit
-        lazy_static! {
-            static ref DAILY_RE: Regex = Regex::new(r"^([0-2]\d:)?[0-5]\d:[0-5]\d$").unwrap();
-            static ref HOURLY_RE: Regex = Regex::new(r"^([0-5]\d)?:[0-5]\d$").unwrap();
-            static ref MINUTE_RE: Regex = Regex::new(r"^:[0-5]\d$").unwrap();
+        if (self.unit == Some(Day) || self.start_day.is_some()) && !DAILY_RE.is_match(time_str) {
+            return Err(SkedgeError::InvalidDailyAtStr);
         }
 
-        if self.unit == Some(Day) || self.start_day.is_some() {
-            if !DAILY_RE.is_match(time_str) {
-                return Err(SkedgeError::InvalidDailyAtStr);
-            }
+        if self.unit == Some(Hour) && !HOURLY_RE.is_match(time_str) {
+            return Err(SkedgeError::InvalidHourlyAtStr);
         }
 
-        if self.unit == Some(Hour) {
-            if !HOURLY_RE.is_match(time_str) {
-                return Err(SkedgeError::InvalidHourlyAtStr);
-            }
-        }
-
-        if self.unit == Some(Minute) {
-            if !MINUTE_RE.is_match(time_str) {
-                return Err(SkedgeError::InvalidMinuteAtStr);
-            }
+        if self.unit == Some(Minute) && !MINUTE_RE.is_match(time_str) {
+            return Err(SkedgeError::InvalidMinuteAtStr);
         }
 
         // Parse time_str and store timestamp
@@ -335,7 +330,8 @@ impl Job {
             debug!("No work scheduled, moving on...");
             return Ok(true);
         }
-        self.job.as_ref().unwrap().call();
+        // FIXME - here's the return value capture
+        let _ = self.job.as_ref().unwrap().call();
         self.last_run = Some(Local::now());
         self.schedule_next_run()?;
 
@@ -608,7 +604,7 @@ impl Job {
         };
 
         // Calculate period (Duration)
-        let period = self.unit.unwrap().duration(self.interval);
+        let period = self.unit.unwrap().duration(interval);
         self.period = Some(period);
         self.next_run = Some(Local::now() + period);
 
@@ -690,13 +686,13 @@ impl Scheduler {
     }
 
     /// Run all jobs that are scheduled to run.  Does NOT run missed jobs!
-    pub fn run_pending(&mut self) {
+    pub fn run_pending(&mut self) -> Result<()> {
         //let mut jobs_to_run: Vec<&Job> = self.jobs.iter().filter(|el| el.should_run()).collect();
         self.jobs.sort();
         let mut to_remove = Vec::new();
         for (idx, job) in self.jobs.iter_mut().enumerate() {
             if job.should_run() {
-                let keep_going = job.execute().unwrap();
+                let keep_going = job.execute()?;
                 if !keep_going {
                     debug!("Cancelling job {}", job);
                     to_remove.push(idx);
@@ -709,20 +705,27 @@ impl Scheduler {
         for &idx in &to_remove {
             self.jobs.remove(idx);
         }
+
+        Ok(())
     }
 
     /// Run all jobs, regardless of schedule.
-    fn run_all(&self, delay_seconds: u32) {
+    pub fn run_all(&mut self, delay_seconds: u64) {
         debug!(
             "Running all {} jobs with {}s delay",
             self.jobs.len(),
             delay_seconds
         );
-        for job in &self.jobs {}
+        for job in &mut self.jobs {
+            if let Err(e) = job.execute() {
+                eprintln!("Error: {}", e);
+            }
+            std::thread::sleep(std::time::Duration::from_secs(delay_seconds))
+        }
     }
-
+ 
     /// Get all jobs, optionally with a given tag.
-    fn get_jobs(&self, tag: Option<Tag>) -> Vec<&Job> {
+    pub fn get_jobs(&self, tag: Option<Tag>) -> Vec<&Job> {
         if let Some(t) = tag {
             self.jobs
                 .iter()
@@ -734,7 +737,7 @@ impl Scheduler {
     }
 
     /// Clear all jobs, optionally only with given tag.
-    fn clear(&mut self, tag: Option<Tag>) {
+    pub fn clear(&mut self, tag: Option<Tag>) {
         if let Some(t) = tag {
             debug!("Deleting all jobs tagged {}", t);
             self.jobs.retain(|el| !el.has_tag(&t));
@@ -744,9 +747,19 @@ impl Scheduler {
         }
     }
 
-    /// Property getter - number of seconds until next run.  None if no jobs scheduled
-    fn idle_seconds(&self) -> Option<u32> {
-        unimplemented!()
+    /// Grab the next upcoming timestamp
+    pub fn next_run(&self) -> Option<Timestamp> {
+        if self.jobs.is_empty() {
+            None
+        } else {
+            // unwrap is safe, we know there's at least one job
+            self.jobs.iter().min().unwrap().next_run
+        }
+    }
+
+    /// Number of seconds until next run.  None if no jobs scheduled
+    pub fn idle_seconds(&self) -> Option<i64> {
+        Some((self.next_run()? - Local::now()).num_seconds())
     }
 }
 
