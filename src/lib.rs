@@ -15,14 +15,14 @@
 //! fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!    let mut schedule = Scheduler::new();
 //!
-//!     every(10).seconds()?.run(&mut schedule, job);
-//!     every(10).minutes()?.run(&mut schedule, job);
-//!     every_single().hour()?.run(&mut schedule, job);
-//!     every_single().day()?.at("10:30")?.run(&mut schedule, job);
-//!     every(5).to(10)?.minutes()?.run(&mut schedule, job);
-//!     every_single().monday()?.run(&mut schedule, job);
-//!     every_single().wednesday()?.at("13:15")?.run(&mut schedule, job);
-//!     every_single().minute()?.at(":17")?.run(&mut schedule, job);
+//!     every(10).seconds()?.run(&mut schedule, job)?;
+//!     every(10).minutes()?.run(&mut schedule, job)?;
+//!     every_single().hour()?.run(&mut schedule, job)?;
+//!     every_single().day()?.at("10:30")?.run(&mut schedule, job)?;
+//!     every(5).to(10)?.minutes()?.run(&mut schedule, job)?;
+//!     every_single().monday()?.run(&mut schedule, job)?;
+//!     every_single().wednesday()?.at("13:15")?.run(&mut schedule, job)?;
+//!     every_single().minute()?.at(":17")?.run(&mut schedule, job)?;
 //!
 //!     // loop {
 //!     //     schedule.run_pending();
