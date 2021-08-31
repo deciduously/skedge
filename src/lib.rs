@@ -24,10 +24,11 @@
 //!     every_single().wednesday()?.at("13:15")?.run(&mut schedule, job);
 //!     every_single().minute()?.at(":17")?.run(&mut schedule, job);
 //!
-//!     loop {
-//!         schedule.run_pending();
-//!         sleep(Duration::from_secs(1));
-//!     }
+//!     // loop {
+//!     //     schedule.run_pending();
+//!     //     sleep(Duration::from_secs(1));
+//!     // }
+//!     Ok(())
 //! }
 //! ```
 
