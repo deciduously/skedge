@@ -25,14 +25,16 @@
 //!     every_single().minute()?.at(":17")?.run(&mut schedule, job)?;
 //!
 //!     // loop {
-//!     //     schedule.run_pending();
+//!     //     if let Err(e) = schedule.run_pending() {
+//!     //         eprintln!("Error: {}", e);
+//!     //     }
 //!     //     sleep(Duration::from_secs(1));
 //!     // }
 //!     Ok(())
 //! }
 //! ```
 
-use chrono::{prelude::*, Duration};
+use chrono::{prelude::*, Datelike, Duration, Timelike};
 use lazy_static::lazy_static;
 use log::*;
 use rand::prelude::*;
@@ -40,6 +42,7 @@ use regex::Regex;
 use std::{
     cmp::{Ord, Ordering},
     collections::HashSet,
+    convert::TryInto,
     fmt,
 };
 
@@ -107,7 +110,7 @@ impl Callable for UnitToUnit {
 type Tag = String;
 
 /// Jobs can be periodic over one of these units of time
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TimeUnit {
     Second,
     Minute,
@@ -198,9 +201,9 @@ impl Job {
     }
 
     /// Tag the job with one or more unique identifiers
-    pub fn tag(&mut self, tags: Vec<impl Into<Tag>>) {
-        for t in tags {
-            let new_tag = t.into();
+    pub fn tag(&mut self, tags: &[&str]) {
+        for &t in tags {
+            let new_tag = t.to_string();
             if !self.tags.contains(&new_tag) {
                 self.tags.insert(new_tag);
             }
@@ -497,9 +500,93 @@ impl Job {
         self.period = Some(period);
         self.next_run = Some(Local::now() + period);
 
-        if self.start_day.is_some() {}
+        // Handle start day for weekly jobs
+        if let Some(w) = self.start_day {
+            // This only makes sense for weekly jobs
+            if self.unit != Some(TimeUnit::Week) {
+                return Err(SkedgeError::StartDayError);
+            }
 
-        if self.at_time.is_some() {}
+            let weekday_num = w.num_days_from_monday();
+            let mut days_ahead = weekday_num as i64
+                - self
+                    .next_run
+                    .unwrap()
+                    .date()
+                    .weekday()
+                    .num_days_from_monday() as i64;
+
+            // Check if the weekday already happened this week, advance a week if so
+            if days_ahead <= 0 {
+                days_ahead += 7;
+            }
+
+            self.next_run = Some(
+                self.next_run.unwrap() + TimeUnit::Day.duration(days_ahead.try_into().unwrap())
+                    - self.period.unwrap(),
+            )
+        }
+
+        // Handle specified at_time
+        if let Some(at_t) = self.at_time {
+            use TimeUnit::*;
+            // Validate configuration
+            if ![Some(Day), Some(Hour), Some(Minute)].contains(&self.unit)
+                && self.start_day.is_none()
+            {
+                return Err(SkedgeError::UnspecifiedStartDay);
+            }
+
+            // Update next_run appropriately
+            let next_run = self.next_run.unwrap();
+            let second = at_t.second();
+            let hour = if self.unit == Some(Day) || self.start_day.is_some() {
+                at_t.hour()
+            } else {
+                next_run.hour()
+            };
+            let minute = if [Some(Day), Some(Hour)].contains(&self.unit) || self.start_day.is_some()
+            {
+                at_t.minute()
+            } else {
+                next_run.minute()
+            };
+            let naive_time = NaiveTime::from_hms(hour, minute, second);
+            let date = next_run.date();
+            self.next_run = Some(date.and_time(naive_time).unwrap());
+
+            // Make sure job gets run TODAY or THIS HOUR
+            // Accounting for jobs take long enough that they finish in the next period
+            if self.last_run.is_none()
+                || (self.next_run.unwrap() - self.last_run.unwrap()) > self.period.unwrap()
+            {
+                let now = Local::now();
+                if self.unit == Some(Day)
+                    && self.at_time.unwrap() > now.time()
+                    && self.interval == 1
+                {
+                    self.next_run = Some(self.next_run.unwrap() - Day.duration(1));
+                } else if self.unit == Some(Hour)
+                    && (self.at_time.unwrap().minute() > now.minute()
+                        || self.at_time.unwrap().minute() == now.minute()
+                            && self.at_time.unwrap().second() > now.second())
+                {
+                    self.next_run = Some(self.next_run.unwrap() - Hour.duration(1));
+                } else if self.unit == Some(Minute) && self.at_time.unwrap().second() > now.second()
+                {
+                    self.next_run = Some(self.next_run.unwrap() - Minute.duration(1));
+                }
+            }
+        }
+
+        // Check if at_time on given day should fire today or next week
+        if self.start_day.is_some() && self.at_time.is_some() {
+            // unwraps are safe, we already set them in this function
+            let next = self.next_run.unwrap(); // safe, we already set it
+            if (next - Local::now()).num_days() >= 7 {
+                self.next_run = Some(next - self.period.unwrap());
+            }
+        }
 
         Ok(())
     }
@@ -565,7 +652,7 @@ pub struct Scheduler {
 impl Scheduler {
     /// Instantiate a Scheduler
     pub fn new() -> Self {
-        pretty_env_logger::init(); //FIXME hmmm, probably not here?
+        pretty_env_logger::init();
         Self::default()
     }
 

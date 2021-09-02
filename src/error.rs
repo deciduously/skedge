@@ -28,6 +28,8 @@ pub enum SkedgeError {
     Weekday(Weekday),
     #[error("Cannot schedule {0} job, already scheduled for {1}")]
     WeekdayCollision(Weekday, Weekday),
+    #[error("Invalid unit without specifying start day")]
+    UnspecifiedStartDay,
 }
 
 /// Construct a new Unit error
