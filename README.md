@@ -39,7 +39,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Starting at {}", Local::now());
     loop {
-        schedule.run_pending();
+        if let Err(e) = schedule.run_pending() {
+            eprintln!("Error: {}", e);
+        }
         sleep(Duration::from_secs(1));
     }
 }
