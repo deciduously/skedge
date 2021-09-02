@@ -25,14 +25,16 @@
 //!     every_single().minute()?.at(":17")?.run(&mut schedule, job)?;
 //!
 //!     // loop {
-//!     //     schedule.run_pending();
+//!     //     if let Err(e) = schedule.run_pending() {
+//!     //         eprintln!("Error: {}", e);
+//!     //     }
 //!     //     sleep(Duration::from_secs(1));
 //!     // }
 //!     Ok(())
 //! }
 //! ```
 
-use chrono::{prelude::*, Duration};
+use chrono::{prelude::*, Datelike, Duration, Timelike};
 use lazy_static::lazy_static;
 use log::*;
 use rand::prelude::*;
@@ -40,6 +42,7 @@ use regex::Regex;
 use std::{
     cmp::{Ord, Ordering},
     collections::HashSet,
+    convert::TryInto,
     fmt,
 };
 
@@ -52,11 +55,17 @@ type Interval = u32;
 /// Timestamps are in the users local timezone
 type Timestamp = DateTime<Local>;
 
+lazy_static! {
+    // Regexes for validating `.at()` strings are only computed once
+    static ref DAILY_RE: Regex = Regex::new(r"^([0-2]\d:)?[0-5]\d:[0-5]\d$").unwrap();
+    static ref HOURLY_RE: Regex = Regex::new(r"^([0-5]\d)?:[0-5]\d$").unwrap();
+    static ref MINUTE_RE: Regex = Regex::new(r"^:[0-5]\d$").unwrap();
+}
+
 /// A job is anything that implements this trait
-// FIXME: This doesn't work yet
 pub trait Callable: fmt::Debug {
     /// Execute this callable
-    fn call(&self);
+    fn call(&self) -> Option<bool>;
     /// Get the name of this callable
     fn name(&self) -> &str;
 }
@@ -88,8 +97,9 @@ impl UnitToUnit {
 }
 
 impl Callable for UnitToUnit {
-    fn call(&self) {
+    fn call(&self) -> Option<bool> {
         (self.work)();
+        None
     }
     fn name(&self) -> &str {
         &self.name
@@ -100,7 +110,7 @@ impl Callable for UnitToUnit {
 type Tag = String;
 
 /// Jobs can be periodic over one of these units of time
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TimeUnit {
     Second,
     Minute,
@@ -191,9 +201,9 @@ impl Job {
     }
 
     /// Tag the job with one or more unique identifiers
-    pub fn tag(&mut self, tags: Vec<impl Into<Tag>>) {
-        for t in tags {
-            let new_tag = t.into();
+    pub fn tag(&mut self, tags: &[&str]) {
+        for &t in tags {
+            let new_tag = t.to_string();
             if !self.tags.contains(&new_tag) {
                 self.tags.insert(new_tag);
             }
@@ -224,28 +234,16 @@ impl Job {
         }
 
         // Validate time_str for set time unit
-        lazy_static! {
-            static ref DAILY_RE: Regex = Regex::new(r"^([0-2]\d:)?[0-5]\d:[0-5]\d$").unwrap();
-            static ref HOURLY_RE: Regex = Regex::new(r"^([0-5]\d)?:[0-5]\d$").unwrap();
-            static ref MINUTE_RE: Regex = Regex::new(r"^:[0-5]\d$").unwrap();
+        if (self.unit == Some(Day) || self.start_day.is_some()) && !DAILY_RE.is_match(time_str) {
+            return Err(SkedgeError::InvalidDailyAtStr);
         }
 
-        if self.unit == Some(Day) || self.start_day.is_some() {
-            if !DAILY_RE.is_match(time_str) {
-                return Err(SkedgeError::InvalidDailyAtStr);
-            }
+        if self.unit == Some(Hour) && !HOURLY_RE.is_match(time_str) {
+            return Err(SkedgeError::InvalidHourlyAtStr);
         }
 
-        if self.unit == Some(Hour) {
-            if !HOURLY_RE.is_match(time_str) {
-                return Err(SkedgeError::InvalidHourlyAtStr);
-            }
-        }
-
-        if self.unit == Some(Minute) {
-            if !MINUTE_RE.is_match(time_str) {
-                return Err(SkedgeError::InvalidMinuteAtStr);
-            }
+        if self.unit == Some(Minute) && !MINUTE_RE.is_match(time_str) {
+            return Err(SkedgeError::InvalidMinuteAtStr);
         }
 
         // Parse time_str and store timestamp
@@ -300,7 +298,8 @@ impl Job {
     /// if the current time is after until_time. This latter case can happen when the
     /// the job was scheduled to run before until_time, but runs after until_time.
     /// If until_time is a moment in the past, we should get a ScheduleValueError.
-    pub fn until(&mut self, until_time: impl Into<Timestamp>) -> Result<Self> {
+    fn until(&mut self, until_time: impl Into<Timestamp>) -> Result<Self> {
+        // NOTE - make this pub when implemented
         unimplemented!()
     }
 
@@ -335,7 +334,8 @@ impl Job {
             debug!("No work scheduled, moving on...");
             return Ok(true);
         }
-        self.job.as_ref().unwrap().call();
+        // FIXME - here's the return value capture
+        let _ = self.job.as_ref().unwrap().call();
         self.last_run = Some(Local::now());
         self.schedule_next_run()?;
 
@@ -347,251 +347,140 @@ impl Job {
         Ok(true)
     }
 
-    // TODO - the below can probably be refactored, lots of repeated code.
-
-    /// Set single second mode
-    pub fn second(self) -> Result<Self> {
-        if self.interval != 1 {
-            Err(interval_error(TimeUnit::Second))
-        } else {
-            self.seconds()
-        }
-    }
-
-    /// Set seconds mode
-    pub fn seconds(mut self) -> Result<Self> {
-        let unit = TimeUnit::Second;
+    /// Shared logic for setting the job to a particular unit
+    fn set_unit_mode(mut self, unit: TimeUnit) -> Result<Self> {
         if let Some(u) = self.unit {
             Err(unit_error(unit, u))
         } else {
             self.unit = Some(unit);
             Ok(self)
         }
+    }
+
+    /// Shared logic for setting single-interval units: second(), minute(), etc.
+    fn set_single_unit_mode(self, unit: TimeUnit) -> Result<Self> {
+        if self.interval != 1 {
+            Err(interval_error(unit))
+        } else {
+            self.set_unit_mode(unit)
+        }
+    }
+
+    /// Set single second mode
+    pub fn second(self) -> Result<Self> {
+        self.set_single_unit_mode(TimeUnit::Second)
+    }
+
+    /// Set seconds mode
+    pub fn seconds(self) -> Result<Self> {
+        self.set_unit_mode(TimeUnit::Second)
     }
 
     /// Set single minute mode
     pub fn minute(self) -> Result<Self> {
-        if self.interval != 1 {
-            Err(interval_error(TimeUnit::Minute))
-        } else {
-            self.minutes()
-        }
+        self.set_single_unit_mode(TimeUnit::Minute)
     }
 
     /// Set minutes mode
-    pub fn minutes(mut self) -> Result<Self> {
-        let unit = TimeUnit::Minute;
-        if let Some(u) = self.unit {
-            Err(unit_error(unit, u))
-        } else {
-            self.unit = Some(unit);
-            Ok(self)
-        }
+    pub fn minutes(self) -> Result<Self> {
+        self.set_unit_mode(TimeUnit::Minute)
     }
 
     /// Set single hour mode
     pub fn hour(self) -> Result<Self> {
-        if self.interval != 1 {
-            Err(interval_error(TimeUnit::Hour))
-        } else {
-            self.hours()
-        }
+        self.set_single_unit_mode(TimeUnit::Hour)
     }
 
     /// Set hours mode
-    pub fn hours(mut self) -> Result<Self> {
-        let unit = TimeUnit::Hour;
-        if let Some(u) = self.unit {
-            Err(unit_error(unit, u))
-        } else {
-            self.unit = Some(unit);
-            Ok(self)
-        }
+    pub fn hours(self) -> Result<Self> {
+        self.set_unit_mode(TimeUnit::Hour)
     }
 
     /// Set single day mode
     pub fn day(self) -> Result<Self> {
-        if self.interval != 1 {
-            Err(interval_error(TimeUnit::Day))
-        } else {
-            self.days()
-        }
+        self.set_single_unit_mode(TimeUnit::Day)
     }
 
     /// Set days mode
-    pub fn days(mut self) -> Result<Self> {
-        let unit = TimeUnit::Day;
-        if let Some(u) = self.unit {
-            Err(unit_error(unit, u))
-        } else {
-            self.unit = Some(unit);
-            Ok(self)
-        }
+    pub fn days(self) -> Result<Self> {
+        self.set_unit_mode(TimeUnit::Day)
     }
 
     /// Set single week mode
     pub fn week(self) -> Result<Self> {
-        if self.interval != 1 {
-            Err(interval_error(TimeUnit::Week))
-        } else {
-            self.weeks()
-        }
+        self.set_single_unit_mode(TimeUnit::Week)
     }
 
     /// Set weeks mode
-    pub fn weeks(mut self) -> Result<Self> {
-        let unit = TimeUnit::Week;
-        if let Some(u) = self.unit {
-            Err(unit_error(unit, u))
-        } else {
-            self.unit = Some(unit);
-            Ok(self)
-        }
+    pub fn weeks(self) -> Result<Self> {
+        self.set_unit_mode(TimeUnit::Week)
     }
 
     /// Set single month mode
     pub fn month(self) -> Result<Self> {
-        if self.interval != 1 {
-            Err(interval_error(TimeUnit::Month))
-        } else {
-            self.months()
-        }
+        self.set_single_unit_mode(TimeUnit::Month)
     }
 
     /// Set months mode
-    pub fn months(mut self) -> Result<Self> {
-        let unit = TimeUnit::Month;
-        if let Some(u) = self.unit {
-            Err(unit_error(unit, u))
-        } else {
-            self.unit = Some(unit);
-            Ok(self)
-        }
+    pub fn months(self) -> Result<Self> {
+        self.set_unit_mode(TimeUnit::Month)
     }
 
     /// Set single year mode
     pub fn year(self) -> Result<Self> {
-        if self.interval != 1 {
-            Err(interval_error(TimeUnit::Year))
-        } else {
-            self.years()
-        }
+        self.set_single_unit_mode(TimeUnit::Year)
     }
 
     /// Set years mode
-    pub fn years(mut self) -> Result<Self> {
-        let unit = TimeUnit::Year;
-        if let Some(u) = self.unit {
-            Err(unit_error(unit, u))
+    pub fn years(self) -> Result<Self> {
+        self.set_unit_mode(TimeUnit::Year)
+    }
+
+    /// Set weekly mode on a specific day of the week
+    fn set_weekday_mode(mut self, weekday: Weekday) -> Result<Self> {
+        if self.interval != 1 {
+            Err(weekday_error(weekday))
+        } else if let Some(w) = self.start_day {
+            Err(weekday_collision_error(weekday, w))
         } else {
-            self.unit = Some(unit);
-            Ok(self)
+            self.start_day = Some(weekday);
+            self.weeks()
         }
     }
 
     /// Set weekly mode on Monday
-    pub fn monday(mut self) -> Result<Self> {
-        let day = Weekday::Mon;
-        if self.interval != 1 {
-            Err(weekday_error(day))
-        } else {
-            if let Some(w) = self.start_day {
-                Err(weekday_collision_error(day, w))
-            } else {
-                self.start_day = Some(day);
-                self.weeks()
-            }
-        }
+    pub fn monday(self) -> Result<Self> {
+        self.set_weekday_mode(Weekday::Mon)
     }
 
     /// Set weekly mode on Tuesday
-    pub fn tuesday(mut self) -> Result<Self> {
-        let day = Weekday::Tue;
-        if self.interval != 1 {
-            Err(weekday_error(day))
-        } else {
-            if let Some(w) = self.start_day {
-                Err(weekday_collision_error(day, w))
-            } else {
-                self.start_day = Some(day);
-                self.weeks()
-            }
-        }
+    pub fn tuesday(self) -> Result<Self> {
+        self.set_weekday_mode(Weekday::Tue)
     }
 
     /// Set weekly mode on Wednesday
-    pub fn wednesday(mut self) -> Result<Self> {
-        let day = Weekday::Wed;
-        if self.interval != 1 {
-            Err(weekday_error(day))
-        } else {
-            if let Some(w) = self.start_day {
-                Err(weekday_collision_error(day, w))
-            } else {
-                self.start_day = Some(day);
-                self.weeks()
-            }
-        }
+    pub fn wednesday(self) -> Result<Self> {
+        self.set_weekday_mode(Weekday::Wed)
     }
 
     /// Set weekly mode on Thursday
-    pub fn thursday(mut self) -> Result<Self> {
-        let day = Weekday::Thu;
-        if self.interval != 1 {
-            Err(weekday_error(day))
-        } else {
-            if let Some(w) = self.start_day {
-                Err(weekday_collision_error(day, w))
-            } else {
-                self.start_day = Some(day);
-                self.weeks()
-            }
-        }
+    pub fn thursday(self) -> Result<Self> {
+        self.set_weekday_mode(Weekday::Thu)
     }
 
     /// Set weekly mode on Friday
-    pub fn friday(mut self) -> Result<Self> {
-        let day = Weekday::Fri;
-        if self.interval != 1 {
-            Err(weekday_error(day))
-        } else {
-            if let Some(w) = self.start_day {
-                Err(weekday_collision_error(day, w))
-            } else {
-                self.start_day = Some(day);
-                self.weeks()
-            }
-        }
+    pub fn friday(self) -> Result<Self> {
+        self.set_weekday_mode(Weekday::Fri)
     }
 
     /// Set weekly mode on Saturday
-    pub fn saturday(mut self) -> Result<Self> {
-        let day = Weekday::Sat;
-        if self.interval != 1 {
-            Err(weekday_error(day))
-        } else {
-            if let Some(w) = self.start_day {
-                Err(weekday_collision_error(day, w))
-            } else {
-                self.start_day = Some(day);
-                self.weeks()
-            }
-        }
+    pub fn saturday(self) -> Result<Self> {
+        self.set_weekday_mode(Weekday::Sat)
     }
 
     /// Set weekly mode on Sunday
-    pub fn sunday(mut self) -> Result<Self> {
-        let day = Weekday::Sun;
-        if self.interval != 1 {
-            Err(weekday_error(day))
-        } else {
-            if let Some(w) = self.start_day {
-                Err(weekday_collision_error(day, w))
-            } else {
-                self.start_day = Some(day);
-                self.weeks()
-            }
-        }
+    pub fn sunday(self) -> Result<Self> {
+        self.set_weekday_mode(Weekday::Sun)
     }
 
     /// Compute the timestamp for the next run
@@ -608,13 +497,97 @@ impl Job {
         };
 
         // Calculate period (Duration)
-        let period = self.unit.unwrap().duration(self.interval);
+        let period = self.unit.unwrap().duration(interval);
         self.period = Some(period);
         self.next_run = Some(Local::now() + period);
 
-        if self.start_day.is_some() {}
+        // Handle start day for weekly jobs
+        if let Some(w) = self.start_day {
+            // This only makes sense for weekly jobs
+            if self.unit != Some(TimeUnit::Week) {
+                return Err(SkedgeError::StartDayError);
+            }
 
-        if self.at_time.is_some() {}
+            let weekday_num = w.num_days_from_monday();
+            let mut days_ahead = weekday_num as i64
+                - self
+                    .next_run
+                    .unwrap()
+                    .date()
+                    .weekday()
+                    .num_days_from_monday() as i64;
+
+            // Check if the weekday already happened this week, advance a week if so
+            if days_ahead <= 0 {
+                days_ahead += 7;
+            }
+
+            self.next_run = Some(
+                self.next_run.unwrap() + TimeUnit::Day.duration(days_ahead.try_into().unwrap())
+                    - self.period.unwrap(),
+            )
+        }
+
+        // Handle specified at_time
+        if let Some(at_t) = self.at_time {
+            use TimeUnit::*;
+            // Validate configuration
+            if ![Some(Day), Some(Hour), Some(Minute)].contains(&self.unit)
+                && self.start_day.is_none()
+            {
+                return Err(SkedgeError::UnspecifiedStartDay);
+            }
+
+            // Update next_run appropriately
+            let next_run = self.next_run.unwrap();
+            let second = at_t.second();
+            let hour = if self.unit == Some(Day) || self.start_day.is_some() {
+                at_t.hour()
+            } else {
+                next_run.hour()
+            };
+            let minute = if [Some(Day), Some(Hour)].contains(&self.unit) || self.start_day.is_some()
+            {
+                at_t.minute()
+            } else {
+                next_run.minute()
+            };
+            let naive_time = NaiveTime::from_hms(hour, minute, second);
+            let date = next_run.date();
+            self.next_run = Some(date.and_time(naive_time).unwrap());
+
+            // Make sure job gets run TODAY or THIS HOUR
+            // Accounting for jobs take long enough that they finish in the next period
+            if self.last_run.is_none()
+                || (self.next_run.unwrap() - self.last_run.unwrap()) > self.period.unwrap()
+            {
+                let now = Local::now();
+                if self.unit == Some(Day)
+                    && self.at_time.unwrap() > now.time()
+                    && self.interval == 1
+                {
+                    self.next_run = Some(self.next_run.unwrap() - Day.duration(1));
+                } else if self.unit == Some(Hour)
+                    && (self.at_time.unwrap().minute() > now.minute()
+                        || self.at_time.unwrap().minute() == now.minute()
+                            && self.at_time.unwrap().second() > now.second())
+                {
+                    self.next_run = Some(self.next_run.unwrap() - Hour.duration(1));
+                } else if self.unit == Some(Minute) && self.at_time.unwrap().second() > now.second()
+                {
+                    self.next_run = Some(self.next_run.unwrap() - Minute.duration(1));
+                }
+            }
+        }
+
+        // Check if at_time on given day should fire today or next week
+        if self.start_day.is_some() && self.at_time.is_some() {
+            // unwraps are safe, we already set them in this function
+            let next = self.next_run.unwrap(); // safe, we already set it
+            if (next - Local::now()).num_days() >= 7 {
+                self.next_run = Some(next - self.period.unwrap());
+            }
+        }
 
         Ok(())
     }
@@ -680,7 +653,7 @@ pub struct Scheduler {
 impl Scheduler {
     /// Instantiate a Scheduler
     pub fn new() -> Self {
-        pretty_env_logger::init(); //FIXME hmmm, probably not here?
+        pretty_env_logger::init();
         Self::default()
     }
 
@@ -690,13 +663,13 @@ impl Scheduler {
     }
 
     /// Run all jobs that are scheduled to run.  Does NOT run missed jobs!
-    pub fn run_pending(&mut self) {
+    pub fn run_pending(&mut self) -> Result<()> {
         //let mut jobs_to_run: Vec<&Job> = self.jobs.iter().filter(|el| el.should_run()).collect();
         self.jobs.sort();
         let mut to_remove = Vec::new();
         for (idx, job) in self.jobs.iter_mut().enumerate() {
             if job.should_run() {
-                let keep_going = job.execute().unwrap();
+                let keep_going = job.execute()?;
                 if !keep_going {
                     debug!("Cancelling job {}", job);
                     to_remove.push(idx);
@@ -709,20 +682,27 @@ impl Scheduler {
         for &idx in &to_remove {
             self.jobs.remove(idx);
         }
+
+        Ok(())
     }
 
     /// Run all jobs, regardless of schedule.
-    fn run_all(&self, delay_seconds: u32) {
+    pub fn run_all(&mut self, delay_seconds: u64) {
         debug!(
             "Running all {} jobs with {}s delay",
             self.jobs.len(),
             delay_seconds
         );
-        for job in &self.jobs {}
+        for job in &mut self.jobs {
+            if let Err(e) = job.execute() {
+                eprintln!("Error: {}", e);
+            }
+            std::thread::sleep(std::time::Duration::from_secs(delay_seconds))
+        }
     }
 
     /// Get all jobs, optionally with a given tag.
-    fn get_jobs(&self, tag: Option<Tag>) -> Vec<&Job> {
+    pub fn get_jobs(&self, tag: Option<Tag>) -> Vec<&Job> {
         if let Some(t) = tag {
             self.jobs
                 .iter()
@@ -734,7 +714,7 @@ impl Scheduler {
     }
 
     /// Clear all jobs, optionally only with given tag.
-    fn clear(&mut self, tag: Option<Tag>) {
+    pub fn clear(&mut self, tag: Option<Tag>) {
         if let Some(t) = tag {
             debug!("Deleting all jobs tagged {}", t);
             self.jobs.retain(|el| !el.has_tag(&t));
@@ -744,9 +724,19 @@ impl Scheduler {
         }
     }
 
-    /// Property getter - number of seconds until next run.  None if no jobs scheduled
-    fn idle_seconds(&self) -> Option<u32> {
-        unimplemented!()
+    /// Grab the next upcoming timestamp
+    pub fn next_run(&self) -> Option<Timestamp> {
+        if self.jobs.is_empty() {
+            None
+        } else {
+            // unwrap is safe, we know there's at least one job
+            self.jobs.iter().min().unwrap().next_run
+        }
+    }
+
+    /// Number of seconds until next run.  None if no jobs scheduled
+    pub fn idle_seconds(&self) -> Option<i64> {
+        Some((self.next_run()? - Local::now()).num_seconds())
     }
 }
 

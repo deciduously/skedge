@@ -22,10 +22,14 @@ pub enum SkedgeError {
     InvalidHourlyAtStr,
     #[error("Invalid time format for minutely job (valid format is :SS")]
     InvalidMinuteAtStr,
+    #[error("Attempted to use a start day for a unit other than `weeks`")]
+    StartDayError,
     #[error("Scheduling jobs on {0} is only allowed for weekly jobs.  Using specific days on a job scheduled to run every 2 or more weeks is not supported")]
     Weekday(Weekday),
     #[error("Cannot schedule {0} job, already scheduled for {1}")]
     WeekdayCollision(Weekday, Weekday),
+    #[error("Invalid unit without specifying start day")]
+    UnspecifiedStartDay,
 }
 
 /// Construct a new Unit error
