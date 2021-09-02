@@ -343,251 +343,140 @@ impl Job {
         Ok(true)
     }
 
-    // TODO - the below can probably be refactored, lots of repeated code.
-
-    /// Set single second mode
-    pub fn second(self) -> Result<Self> {
-        if self.interval != 1 {
-            Err(interval_error(TimeUnit::Second))
-        } else {
-            self.seconds()
-        }
-    }
-
-    /// Set seconds mode
-    pub fn seconds(mut self) -> Result<Self> {
-        let unit = TimeUnit::Second;
+    /// Shared logic for setting the job to a particular unit
+    fn set_unit_mode(mut self, unit: TimeUnit) -> Result<Self> {
         if let Some(u) = self.unit {
             Err(unit_error(unit, u))
         } else {
             self.unit = Some(unit);
             Ok(self)
         }
+    }
+
+    /// Shared logic for setting single-interval units: second(), minute(), etc.
+    fn set_single_unit_mode(self, unit: TimeUnit) -> Result<Self> {
+        if self.interval != 1 {
+            Err(interval_error(unit))
+        } else {
+            self.set_unit_mode(unit)
+        }
+    }
+
+    /// Set single second mode
+    pub fn second(self) -> Result<Self> {
+        self.set_single_unit_mode(TimeUnit::Second)
+    }
+
+    /// Set seconds mode
+    pub fn seconds(self) -> Result<Self> {
+        self.set_unit_mode(TimeUnit::Second)
     }
 
     /// Set single minute mode
     pub fn minute(self) -> Result<Self> {
-        if self.interval != 1 {
-            Err(interval_error(TimeUnit::Minute))
-        } else {
-            self.minutes()
-        }
+        self.set_single_unit_mode(TimeUnit::Minute)
     }
 
     /// Set minutes mode
-    pub fn minutes(mut self) -> Result<Self> {
-        let unit = TimeUnit::Minute;
-        if let Some(u) = self.unit {
-            Err(unit_error(unit, u))
-        } else {
-            self.unit = Some(unit);
-            Ok(self)
-        }
+    pub fn minutes(self) -> Result<Self> {
+        self.set_unit_mode(TimeUnit::Minute)
     }
 
     /// Set single hour mode
     pub fn hour(self) -> Result<Self> {
-        if self.interval != 1 {
-            Err(interval_error(TimeUnit::Hour))
-        } else {
-            self.hours()
-        }
+        self.set_single_unit_mode(TimeUnit::Hour)
     }
 
     /// Set hours mode
-    pub fn hours(mut self) -> Result<Self> {
-        let unit = TimeUnit::Hour;
-        if let Some(u) = self.unit {
-            Err(unit_error(unit, u))
-        } else {
-            self.unit = Some(unit);
-            Ok(self)
-        }
+    pub fn hours(self) -> Result<Self> {
+        self.set_unit_mode(TimeUnit::Hour)
     }
 
     /// Set single day mode
     pub fn day(self) -> Result<Self> {
-        if self.interval != 1 {
-            Err(interval_error(TimeUnit::Day))
-        } else {
-            self.days()
-        }
+        self.set_single_unit_mode(TimeUnit::Day)
     }
 
     /// Set days mode
-    pub fn days(mut self) -> Result<Self> {
-        let unit = TimeUnit::Day;
-        if let Some(u) = self.unit {
-            Err(unit_error(unit, u))
-        } else {
-            self.unit = Some(unit);
-            Ok(self)
-        }
+    pub fn days(self) -> Result<Self> {
+        self.set_unit_mode(TimeUnit::Day)
     }
 
     /// Set single week mode
     pub fn week(self) -> Result<Self> {
-        if self.interval != 1 {
-            Err(interval_error(TimeUnit::Week))
-        } else {
-            self.weeks()
-        }
+        self.set_single_unit_mode(TimeUnit::Week)
     }
 
     /// Set weeks mode
-    pub fn weeks(mut self) -> Result<Self> {
-        let unit = TimeUnit::Week;
-        if let Some(u) = self.unit {
-            Err(unit_error(unit, u))
-        } else {
-            self.unit = Some(unit);
-            Ok(self)
-        }
+    pub fn weeks(self) -> Result<Self> {
+        self.set_unit_mode(TimeUnit::Week)
     }
 
     /// Set single month mode
     pub fn month(self) -> Result<Self> {
-        if self.interval != 1 {
-            Err(interval_error(TimeUnit::Month))
-        } else {
-            self.months()
-        }
+        self.set_single_unit_mode(TimeUnit::Month)
     }
 
     /// Set months mode
-    pub fn months(mut self) -> Result<Self> {
-        let unit = TimeUnit::Month;
-        if let Some(u) = self.unit {
-            Err(unit_error(unit, u))
-        } else {
-            self.unit = Some(unit);
-            Ok(self)
-        }
+    pub fn months(self) -> Result<Self> {
+        self.set_unit_mode(TimeUnit::Month)
     }
 
     /// Set single year mode
     pub fn year(self) -> Result<Self> {
-        if self.interval != 1 {
-            Err(interval_error(TimeUnit::Year))
-        } else {
-            self.years()
-        }
+        self.set_single_unit_mode(TimeUnit::Year)
     }
 
     /// Set years mode
-    pub fn years(mut self) -> Result<Self> {
-        let unit = TimeUnit::Year;
-        if let Some(u) = self.unit {
-            Err(unit_error(unit, u))
+    pub fn years(self) -> Result<Self> {
+        self.set_unit_mode(TimeUnit::Year)
+    }
+
+    /// Set weekly mode on a specific day of the week
+    fn set_weekday_mode(mut self, weekday: Weekday) -> Result<Self> {
+        if self.interval != 1 {
+            Err(weekday_error(weekday))
+        } else if let Some(w) = self.start_day {
+            Err(weekday_collision_error(weekday, w))
         } else {
-            self.unit = Some(unit);
-            Ok(self)
+            self.start_day = Some(weekday);
+            self.weeks()
         }
     }
 
     /// Set weekly mode on Monday
-    pub fn monday(mut self) -> Result<Self> {
-        let day = Weekday::Mon;
-        if self.interval != 1 {
-            Err(weekday_error(day))
-        } else {
-            if let Some(w) = self.start_day {
-                Err(weekday_collision_error(day, w))
-            } else {
-                self.start_day = Some(day);
-                self.weeks()
-            }
-        }
+    pub fn monday(self) -> Result<Self> {
+        self.set_weekday_mode(Weekday::Mon)
     }
 
     /// Set weekly mode on Tuesday
-    pub fn tuesday(mut self) -> Result<Self> {
-        let day = Weekday::Tue;
-        if self.interval != 1 {
-            Err(weekday_error(day))
-        } else {
-            if let Some(w) = self.start_day {
-                Err(weekday_collision_error(day, w))
-            } else {
-                self.start_day = Some(day);
-                self.weeks()
-            }
-        }
+    pub fn tuesday(self) -> Result<Self> {
+        self.set_weekday_mode(Weekday::Tue)
     }
 
     /// Set weekly mode on Wednesday
-    pub fn wednesday(mut self) -> Result<Self> {
-        let day = Weekday::Wed;
-        if self.interval != 1 {
-            Err(weekday_error(day))
-        } else {
-            if let Some(w) = self.start_day {
-                Err(weekday_collision_error(day, w))
-            } else {
-                self.start_day = Some(day);
-                self.weeks()
-            }
-        }
+    pub fn wednesday(self) -> Result<Self> {
+        self.set_weekday_mode(Weekday::Wed)
     }
 
     /// Set weekly mode on Thursday
-    pub fn thursday(mut self) -> Result<Self> {
-        let day = Weekday::Thu;
-        if self.interval != 1 {
-            Err(weekday_error(day))
-        } else {
-            if let Some(w) = self.start_day {
-                Err(weekday_collision_error(day, w))
-            } else {
-                self.start_day = Some(day);
-                self.weeks()
-            }
-        }
+    pub fn thursday(self) -> Result<Self> {
+        self.set_weekday_mode(Weekday::Thu)
     }
 
     /// Set weekly mode on Friday
-    pub fn friday(mut self) -> Result<Self> {
-        let day = Weekday::Fri;
-        if self.interval != 1 {
-            Err(weekday_error(day))
-        } else {
-            if let Some(w) = self.start_day {
-                Err(weekday_collision_error(day, w))
-            } else {
-                self.start_day = Some(day);
-                self.weeks()
-            }
-        }
+    pub fn friday(self) -> Result<Self> {
+        self.set_weekday_mode(Weekday::Fri)
     }
 
     /// Set weekly mode on Saturday
-    pub fn saturday(mut self) -> Result<Self> {
-        let day = Weekday::Sat;
-        if self.interval != 1 {
-            Err(weekday_error(day))
-        } else {
-            if let Some(w) = self.start_day {
-                Err(weekday_collision_error(day, w))
-            } else {
-                self.start_day = Some(day);
-                self.weeks()
-            }
-        }
+    pub fn saturday(self) -> Result<Self> {
+        self.set_weekday_mode(Weekday::Sat)
     }
 
     /// Set weekly mode on Sunday
-    pub fn sunday(mut self) -> Result<Self> {
-        let day = Weekday::Sun;
-        if self.interval != 1 {
-            Err(weekday_error(day))
-        } else {
-            if let Some(w) = self.start_day {
-                Err(weekday_collision_error(day, w))
-            } else {
-                self.start_day = Some(day);
-                self.weeks()
-            }
-        }
+    pub fn sunday(self) -> Result<Self> {
+        self.set_weekday_mode(Weekday::Sun)
     }
 
     /// Compute the timestamp for the next run
@@ -723,7 +612,7 @@ impl Scheduler {
             std::thread::sleep(std::time::Duration::from_secs(delay_seconds))
         }
     }
- 
+
     /// Get all jobs, optionally with a given tag.
     pub fn get_jobs(&self, tag: Option<Tag>) -> Vec<&Job> {
         if let Some(t) = tag {
