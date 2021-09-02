@@ -1,12 +1,19 @@
 # skedge
 
-**WIP DO NOT USE**
+[![Crates.io](https://img.shields.io/crates/v/skedge.svg)](https://crates.io/crates/skedge)
+[![Workflow Status](https://github.com/deciduously/skedge/workflows/main/badge.svg)](https://github.com/deciduously/skedge/actions?query=workflow%3A%22main%22)
 
-Rust single-process scheduling.  Inspired by [`schedule`](https://github.com/dbader/schedule) (Python), in turn inspired by [`clockwork`](https://github.com/Rykian/clockwork) (Ruby), and ["Rethinking Cron"](https://adam.herokuapp.com/past/2010/4/13/rethinking_cron/) by [Adam Wiggins](https://github.com/adamwiggins).
+**WIP - USE AT OWN RISK**
+
+Rust single-process scheduling.  Ported from [`schedule`](https://github.com/dbader/schedule) for Python, in turn inspired by [`clockwork`](https://github.com/Rykian/clockwork) (Ruby), and ["Rethinking Cron"](https://adam.herokuapp.com/past/2010/4/13/rethinking_cron/) by [Adam Wiggins](https://github.com/adamwiggins).
+
+While most of it should work, currently, the `until()` method has no effect, and only jobs which take no parameters and return nothing can be scheduled.  Also, I haven't written tests yet, so there's really no guarantee any of it works like it should.  This is a pre-release.  Stay tuned.
 
 ## Usage
 
-Don't.  But eventually:
+Documentation can be found on [docs.rs](https://docs.rs/skedge).
+
+This library uses the Builder pattern to define jobs.  Instantiate a fresh `Scheduler`, then use the `every()` and `every_single()` functions to begin defining a job.  Finalize configuration by calling `Job::run()` to add the new job to the scheduler.  The `Scheduler::run_pending()` method is used to fire any jobs that have arrived at their next scheduled run time.  Currently, precision can only be specified to the second, no smaller.
 
 ```rust
 use chrono::Local;
@@ -20,6 +27,7 @@ fn job() {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut schedule = Scheduler::new();
+
     every(10).seconds()?.run(&mut schedule, job)?;
     every(10).minutes()?.run(&mut schedule, job)?;
     every_single().hour()?.run(&mut schedule, job)?;
@@ -41,7 +49,7 @@ Try `cargo run --example basic` to see it in action.
 
 ## Development
 
-Clone this repo.
+Clone this repo.  See [`CONTRIBUTING.md`](https://github.com/deciduously/skedge/blob/main/CONTRIBUTING.md) for contribution guidelines.
 
 ### Dependencies
  
