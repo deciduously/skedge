@@ -298,7 +298,8 @@ impl Job {
     /// if the current time is after until_time. This latter case can happen when the
     /// the job was scheduled to run before until_time, but runs after until_time.
     /// If until_time is a moment in the past, we should get a ScheduleValueError.
-    pub fn until(&mut self, until_time: impl Into<Timestamp>) -> Result<Self> {
+    fn until(&mut self, until_time: impl Into<Timestamp>) -> Result<Self> {
+        // NOTE - make this pub when implemented
         unimplemented!()
     }
 
