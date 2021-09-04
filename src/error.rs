@@ -22,6 +22,10 @@ pub enum SkedgeError {
     InvalidHourlyAtStr,
     #[error("Invalid time format for minutely job (valid format is :SS")]
     InvalidMinuteAtStr,
+    #[error("Invalid string format for until()")]
+    InvalidUntilStr,
+    #[error("Cannot schedule a job to run until a time in the past")]
+    InvalidUntilTime,
     #[error("Attempted to use a start day for a unit other than `weeks`")]
     StartDayError,
     #[error("Scheduling jobs on {0} is only allowed for weekly jobs.  Using specific days on a job scheduled to run every 2 or more weeks is not supported")]
