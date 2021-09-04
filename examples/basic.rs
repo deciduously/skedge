@@ -20,6 +20,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .wednesday()?
         .at("13:15")?
         .run(&mut schedule, job)?;
+    every(2)
+        .to(8)?
+        .seconds()?
+        .until(Local::now() + chrono::Duration::seconds(30))?
+        .run(&mut schedule, job)?;
 
     println!("Starting at {}", Local::now());
     loop {

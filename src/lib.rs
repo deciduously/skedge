@@ -23,6 +23,7 @@
 //!     every_single().monday()?.run(&mut schedule, job)?;
 //!     every_single().wednesday()?.at("13:15")?.run(&mut schedule, job)?;
 //!     every_single().minute()?.at(":17")?.run(&mut schedule, job)?;
+//!     every(2).to(8)?.seconds()?.until(Local::now() + chrono::Duration::seconds(30))?.run(&mut schedule, job)?;
 //!
 //!     // loop {
 //!     //     if let Err(e) = schedule.run_pending() {
@@ -297,13 +298,14 @@ impl Job {
     /// next run is after the until_time. The job is also canceled right before it runs,
     /// if the current time is after until_time. This latter case can happen when the
     /// the job was scheduled to run before until_time, but runs after until_time.
-    /// If until_time is a moment in the past, we should get a ScheduleValueError.
-    pub fn until(mut self, until_time: impl Into<Timestamp>) -> Result<Self> {
-        let timestamp: Timestamp = until_time.into();
-        if timestamp < Local::now() {
+    /// If until_time is a moment in the past, returns an error.
+    ///
+    ///
+    pub fn until(mut self, until_time: Timestamp) -> Result<Self> {
+        if until_time < Local::now() {
             return Err(SkedgeError::InvalidUntilTime);
         }
-        self.cancel_after = Some(timestamp);
+        self.cancel_after = Some(until_time);
         Ok(self)
     }
 
