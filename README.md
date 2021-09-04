@@ -1,13 +1,13 @@
 # skedge
 
 [![Crates.io](https://img.shields.io/crates/v/skedge.svg)](https://crates.io/crates/skedge)
-[![Workflow Status](https://github.com/deciduously/skedge/workflows/rust/badge.svg)](https://github.com/deciduously/skedge/actions?query=workflow%3A%22rust%22)
+[![GitHub Workflow Status](https://img.shields.io/github/workflow/status/deciduously/skedge/rust)](https://github.com/deciduously/skedge/actions/workflows/rust.yml)
 
 **WIP - USE AT OWN RISK**
 
 Rust single-process scheduling.  Ported from [`schedule`](https://github.com/dbader/schedule) for Python, in turn inspired by [`clockwork`](https://github.com/Rykian/clockwork) (Ruby), and ["Rethinking Cron"](https://adam.herokuapp.com/past/2010/4/13/rethinking_cron/) by [Adam Wiggins](https://github.com/adamwiggins).
 
-While most of it should work, currently, the `until()` method has not been implemented, and only jobs which take no parameters and return nothing can be scheduled.  Also, I haven't written tests yet, so there's really no guarantee any of it works like it should.  This is a pre-release.  Stay tuned.
+While most of it should work, only jobs which take no parameters and return nothing can be scheduled.  Also, I haven't written tests yet, so there's really no guarantee any of it works like it should.  This is a pre-release.  Stay tuned.
 
 ## Usage
 
@@ -36,6 +36,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     every_single().monday()?.run(&mut schedule, job);
     every_single().wednesday()?.at("13:15")?.run(&mut schedule, job);
     every_single().minute()?.at(":17")?.run(&mut schedule, job);
+    every(2)
+        .to(8)?
+        .seconds()?
+        .until(Local::now() + chrono::Duration::seconds(30))?
+        .run(&mut schedule, job)?;
 
     println!("Starting at {}", Local::now());
     loop {
