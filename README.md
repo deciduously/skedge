@@ -71,3 +71,8 @@ Clone this repo.  See [`CONTRIBUTING.md`](https://github.com/deciduously/skedge/
 * [rand](https://rust-random.github.io/book/) - Random number generation
 * [regex](https://github.com/rust-lang/regex) - Regular expressions
 * [thiserror](https://github.com/dtolnay/thiserror) - Error derive macro
+
+#### Development-Only
+
+ * [mockall](https://github.com/asomers/mockall) - Mock objects
+ * [pretty_assertions](https://github.com/colin-kiegel/rust-pretty-assertions) - Colorful assertion output
