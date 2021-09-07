@@ -1,7 +1,7 @@
 [package]
 name = "skedge"
 description = "Ergonomic single-process job scheduling for Rust programs."
-version = "0.1.0"
+version = "0.0.6"
 edition = "2018"
 authors = ["Ben Lovy <ben@deciduously.com>"]
 documentation = "https://docs.rs/skedge"
