@@ -157,14 +157,15 @@ mod tests {
     fn test_simple_jobs() -> Result<()> {
         let (mut scheduler, every, _) = setup();
 
-        every(10).seconds()?.run(&mut scheduler, job)?;
+        every(17).seconds()?.run(&mut scheduler, job)?;
         every(10).minutes()?.run(&mut scheduler, job)?;
-        assert_eq!(scheduler.next_run(), Some(*START + Duration::seconds(10)));
+        assert_eq!(scheduler.next_run(), Some(*START + Duration::seconds(17)));
 
-        scheduler.bump_times(Duration::seconds(10))?;
-        assert_eq!(scheduler.next_run(), Some(*START + Duration::seconds(20)));
+        scheduler.bump_times(Duration::seconds(17))?;
+        assert_eq!(scheduler.next_run(), Some(*START + Duration::seconds(17 * 2)));
 
-        scheduler.bump_times(Duration::minutes(9) + Duration::seconds(40))?;
+        // This time, we should hit the 10 minute mark, not the next 17 second mark
+        scheduler.bump_times(Duration::minutes(9) + Duration::seconds(60 - (17 * 2)))?;
         assert_eq!(scheduler.next_run(), Some(*START + Duration::minutes(10)));
 
         Ok(())
