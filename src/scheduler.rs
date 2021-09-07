@@ -154,19 +154,42 @@ mod tests {
     fn job() {}
 
     #[test]
-    fn test_simple_jobs() -> Result<()> {
-        let (mut scheduler, every, _) = setup();
+    fn test_two_jobs() -> Result<()> {
+        let (mut scheduler, every, every_single) = setup();
+
+        assert_eq!(scheduler.idle_seconds(), None);
 
         every(17).seconds()?.run(&mut scheduler, job)?;
-        every(10).minutes()?.run(&mut scheduler, job)?;
+        assert_eq!(scheduler.idle_seconds(), Some(17));
+
+        every_single().minute()?.run(&mut scheduler, job)?;
+        assert_eq!(scheduler.idle_seconds(), Some(17));
         assert_eq!(scheduler.next_run(), Some(*START + Duration::seconds(17)));
 
         scheduler.bump_times(Duration::seconds(17))?;
-        assert_eq!(scheduler.next_run(), Some(*START + Duration::seconds(17 * 2)));
+        assert_eq!(
+            scheduler.next_run(),
+            Some(*START + Duration::seconds(17 * 2))
+        );
 
-        // This time, we should hit the 10 minute mark, not the next 17 second mark
-        scheduler.bump_times(Duration::minutes(9) + Duration::seconds(60 - (17 * 2)))?;
-        assert_eq!(scheduler.next_run(), Some(*START + Duration::minutes(10)));
+        scheduler.bump_times(Duration::seconds(17))?;
+        assert_eq!(
+            scheduler.next_run(),
+            Some(*START + Duration::seconds(17 * 3))
+        );
+
+        // This time, we should hit the minute mark next, not the next 17 second mark
+        scheduler.bump_times(Duration::seconds(17))?;
+        assert_eq!(scheduler.idle_seconds(), Some(9));
+        assert_eq!(scheduler.next_run(), Some(*START + Duration::minutes(1)));
+
+        // Afterwards, back to the 17 second job
+        scheduler.bump_times(Duration::seconds(9))?;
+        assert_eq!(scheduler.idle_seconds(), Some(8));
+        assert_eq!(
+            scheduler.next_run(),
+            Some(*START + Duration::seconds(17 * 4))
+        );
 
         Ok(())
     }
