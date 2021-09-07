@@ -1,6 +1,6 @@
 //! This module defines the error type and Result alias.
 
-use super::TimeUnit;
+use crate::TimeUnit;
 use chrono::Weekday;
 use thiserror::Error;
 
