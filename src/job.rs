@@ -112,7 +112,6 @@ impl Job {
 
         // Validate time unit
         if ![Week, Day, Hour, Minute].contains(&self.unit.unwrap_or(Year)) {
-            dbg!(self.unit);
             return Err(SkedgeError::InvalidUnit);
         }
 
@@ -151,7 +150,7 @@ impl Job {
         }
 
         if self.unit == Some(Day) || self.start_day.is_some() {
-            if !hour <= 23 {
+            if hour > 23 {
                 return Err(invalid_hour_error(hour));
             }
         } else if self.unit == Some(Hour) {
@@ -170,8 +169,12 @@ impl Job {
     ///
     /// E.g. every(3).to(6).seconds
     pub fn to(mut self, latest: Interval) -> Result<Self> {
-        self.latest = Some(latest);
-        Ok(self)
+        if latest <= self.interval {
+            Err(SkedgeError::InvalidInterval)
+        } else {
+            self.latest = Some(latest);
+            Ok(self)
+        }
     }
 
     /// Schedule job to run until the specified moment.
@@ -521,9 +524,242 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     #[test]
-    fn test_time_units() -> Result<()> {
+    fn test_plural_time_units() -> Result<()> {
         use TimeUnit::*;
-        assert_eq!(every_single().seconds()?.unit, Some(Second));
+        assert_eq!(every(2).seconds()?.unit, Some(Second));
+        assert_eq!(every(2).minutes()?.unit, Some(Minute));
+        assert_eq!(every(2).hours()?.unit, Some(Hour));
+        assert_eq!(every(2).days()?.unit, Some(Day));
+        assert_eq!(every(2).weeks()?.unit, Some(Week));
+        assert_eq!(every(2).months()?.unit, Some(Month));
+        assert_eq!(every(2).years()?.unit, Some(Year));
+        // Okay to use plural method with singular interval:
+        assert_eq!(every(1).seconds()?.unit, Some(Second));
+        assert_eq!(every(1).minutes()?.unit, Some(Minute));
+        assert_eq!(every(1).hours()?.unit, Some(Hour));
+        assert_eq!(every(1).days()?.unit, Some(Day));
+        assert_eq!(every(1).weeks()?.unit, Some(Week));
+        assert_eq!(every(1).months()?.unit, Some(Month));
+        assert_eq!(every(1).years()?.unit, Some(Year));
         Ok(())
+    }
+
+    #[test]
+    fn test_singular_time_units() -> Result<()> {
+        use TimeUnit::*;
+        assert_eq!(every(1), every_single());
+        assert_eq!(every_single().second()?.unit, Some(Second));
+        assert_eq!(every_single().minute()?.unit, Some(Minute));
+        assert_eq!(every_single().hour()?.unit, Some(Hour));
+        assert_eq!(every_single().day()?.unit, Some(Day));
+        assert_eq!(every_single().week()?.unit, Some(Week));
+        assert_eq!(every_single().month()?.unit, Some(Month));
+        assert_eq!(every_single().year()?.unit, Some(Year));
+        Ok(())
+    }
+
+    #[test]
+    fn test_singular_unit_plural_interval_mismatch() {
+        assert_eq!(
+            every(2).second().unwrap_err().to_string(),
+            "Use seconds() instead of second()".to_string()
+        );
+        assert_eq!(
+            every(2).minute().unwrap_err().to_string(),
+            "Use minutes() instead of minute()".to_string()
+        );
+        assert_eq!(
+            every(2).hour().unwrap_err().to_string(),
+            "Use hours() instead of hour()".to_string()
+        );
+        assert_eq!(
+            every(2).day().unwrap_err().to_string(),
+            "Use days() instead of day()".to_string()
+        );
+        assert_eq!(
+            every(2).week().unwrap_err().to_string(),
+            "Use weeks() instead of week()".to_string()
+        );
+        assert_eq!(
+            every(2).month().unwrap_err().to_string(),
+            "Use months() instead of month()".to_string()
+        );
+        assert_eq!(
+            every(2).year().unwrap_err().to_string(),
+            "Use years() instead of year()".to_string()
+        );
+    }
+
+    #[test]
+    fn test_singular_units_match_plural_units() -> Result<()> {
+        assert_eq!(every(1).second()?.unit, every(1).seconds()?.unit);
+        assert_eq!(every(1).minute()?.unit, every(1).minutes()?.unit);
+        assert_eq!(every(1).hour()?.unit, every(1).hours()?.unit);
+        assert_eq!(every(1).day()?.unit, every(1).days()?.unit);
+        assert_eq!(every(1).week()?.unit, every(1).weeks()?.unit);
+        assert_eq!(every(1).month()?.unit, every(1).months()?.unit);
+        assert_eq!(every(1).year()?.unit, every(1).years()?.unit);
+        Ok(())
+    }
+
+    #[test]
+    fn test_reject_weekday_multiple_weeks() {
+        assert_eq!(
+            every(2).monday().unwrap_err().to_string(),
+            "Scheduling jobs on Mon is only allowed for weekly jobs.  Using specific days on a job scheduled to run every 2 or more weeks is not supported".to_string()
+        );
+        assert_eq!(
+            every(2).tuesday().unwrap_err().to_string(),
+            "Scheduling jobs on Tue is only allowed for weekly jobs.  Using specific days on a job scheduled to run every 2 or more weeks is not supported".to_string()
+        );
+        assert_eq!(
+            every(2).wednesday().unwrap_err().to_string(),
+            "Scheduling jobs on Wed is only allowed for weekly jobs.  Using specific days on a job scheduled to run every 2 or more weeks is not supported".to_string()
+        );
+        assert_eq!(
+            every(2).thursday().unwrap_err().to_string(),
+            "Scheduling jobs on Thu is only allowed for weekly jobs.  Using specific days on a job scheduled to run every 2 or more weeks is not supported".to_string()
+        );
+        assert_eq!(
+            every(2).friday().unwrap_err().to_string(),
+            "Scheduling jobs on Fri is only allowed for weekly jobs.  Using specific days on a job scheduled to run every 2 or more weeks is not supported".to_string()
+        );
+        assert_eq!(
+            every(2).saturday().unwrap_err().to_string(),
+            "Scheduling jobs on Sat is only allowed for weekly jobs.  Using specific days on a job scheduled to run every 2 or more weeks is not supported".to_string()
+        );
+        assert_eq!(
+            every(2).sunday().unwrap_err().to_string(),
+            "Scheduling jobs on Sun is only allowed for weekly jobs.  Using specific days on a job scheduled to run every 2 or more weeks is not supported".to_string()
+        );
+    }
+
+    #[test]
+    fn test_reject_start_day_unless_weekly() -> Result<()> {
+        let mut job = every_single();
+        let expected = "Attempted to use a start day for a unit other than `weeks`".to_string();
+        job.unit = Some(TimeUnit::Day);
+        job.start_day = Some(Weekday::Wed);
+        assert_eq!(job.schedule_next_run().unwrap_err().to_string(), expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_reject_multiple_time_units() -> Result<()> {
+        assert_eq!(
+            every_single().day()?.wednesday().unwrap_err().to_string(),
+            "Cannot set weeks mode, already using days".to_string()
+        );
+        assert_eq!(
+            every_single().minute()?.second().unwrap_err().to_string(),
+            "Cannot set seconds mode, already using minutes".to_string()
+        );
+        // TODO etc...
+        Ok(())
+    }
+
+    #[test]
+    fn test_reject_invalid_at_time() -> Result<()> {
+        let bad_hour = "Invalid hour (25 is not between 0 and 23)".to_string();
+        let bad_daily =
+            "Invalid time format for daily job (valid format is HH:MM(:SS)?)".to_string();
+        let bad_hourly =
+            "Invalid time format for hourly job (valid format is (MM)?:SS)".to_string();
+        let bad_minutely = "Invalid time format for minutely job (valid format is :SS)".to_string();
+        let bad_unit = "Invalid unit (valid units are `days`, `hours`, and `minutes`)".to_string();
+        assert_eq!(
+            every_single()
+                .second()?
+                .at("13:15")
+                .unwrap_err()
+                .to_string(),
+            bad_unit
+        );
+        assert_eq!(
+            every_single()
+                .day()?
+                .at("25:00:00")
+                .unwrap_err()
+                .to_string(),
+            bad_hour
+        );
+        assert_eq!(
+            every_single()
+                .day()?
+                .at("00:61:00")
+                .unwrap_err()
+                .to_string(),
+            bad_daily
+        );
+        assert_eq!(
+            every_single()
+                .day()?
+                .at("00:00:61")
+                .unwrap_err()
+                .to_string(),
+            bad_daily
+        );
+        assert_eq!(
+            every_single()
+                .day()?
+                .at("00:61:00")
+                .unwrap_err()
+                .to_string(),
+            bad_daily
+        );
+        assert_eq!(
+            every_single().day()?.at("25:0:0").unwrap_err().to_string(),
+            bad_daily
+        );
+        assert_eq!(
+            every_single().day()?.at("0:61:0").unwrap_err().to_string(),
+            bad_daily
+        );
+        assert_eq!(
+            every_single().day()?.at("0:0:61").unwrap_err().to_string(),
+            bad_daily
+        );
+        assert_eq!(
+            every_single()
+                .hour()?
+                .at("23:59:29")
+                .unwrap_err()
+                .to_string(),
+            bad_hourly
+        );
+        assert_eq!(
+            every_single().hour()?.at("61:00").unwrap_err().to_string(),
+            bad_hourly
+        );
+        assert_eq!(
+            every_single().hour()?.at("00:61").unwrap_err().to_string(),
+            bad_hourly
+        );
+        assert_eq!(
+            every_single().hour()?.at(":61").unwrap_err().to_string(),
+            bad_hourly
+        );
+        assert_eq!(
+            every_single()
+                .minute()?
+                .at("22:45:34")
+                .unwrap_err()
+                .to_string(),
+            bad_minutely
+        );
+        assert_eq!(
+            every_single().minute()?.at(":61").unwrap_err().to_string(),
+            bad_minutely
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_latest_greater_than_interval() {
+        assert_eq!(
+            every(2).to(1).unwrap_err().to_string(),
+            "Latest val is greater than interval val".to_string()
+        );
+        assert_eq!(every(2).to(3).unwrap().latest, Some(3))
     }
 }

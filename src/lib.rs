@@ -57,7 +57,7 @@ mod job;
 mod scheduler;
 
 use callable::{Callable, UnitToUnit};
-pub use job::{Job, every, every_single};
+pub use job::{every, every_single, Job};
 pub use scheduler::Scheduler;
 
 /// Each interval value is an unsigned 32-bit integer
