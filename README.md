@@ -1,7 +1,7 @@
 # skedge
 
 [![Crates.io](https://img.shields.io/crates/v/skedge.svg)](https://crates.io/crates/skedge)
-[![rust action](https://github.com/deciduously/skedge/actions/workflows/rust/badge.svg)](https://github.com/deciduously/skedge/actions/workflows/rust.yml)
+[![rust action](https://github.com/deciduously/skedge/actions/workflows/rust.yml/badge.svg)](https://github.com/deciduously/skedge/actions/workflows/rust.yml)
 
 **WIP - USE AT OWN RISK**
 
