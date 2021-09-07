@@ -1,13 +1,13 @@
 [package]
 name = "skedge"
 description = "Ergonomic single-process job scheduling for Rust programs."
-version = "0.0.5"
+version = "0.0.6"
 edition = "2018"
 authors = ["Ben Lovy <ben@deciduously.com>"]
 documentation = "https://docs.rs/skedge"
 homepage = "https://crates.io/crates/skedge"
 include = ["**/*.rs", "Cargo.toml"]
-keywords = ["utilities", "scheduling"]
+keywords = ["utility", "scheduling"]
 license = "BSD-3-Clause"
 readme = "README.md"
 repository = "https://github.com/deciduously/skedge"
@@ -24,7 +24,6 @@ thiserror = "1"
 
 [dev-dependencies]
 
-mockall = "0.10"
 pretty_assertions = "0.7"
 
 [profile]

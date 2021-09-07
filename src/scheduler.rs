@@ -1,7 +1,6 @@
 //! The scheduler is responsible for managing all scheduled jobs.
 
-use crate::{error::*, job::Job, Tag, Timestamp};
-use chrono::Local;
+use crate::{error::*, Job, Tag, Timekeeper, Timestamp};
 use log::*;
 
 /// A Scheduler creates jobs, tracks recorded jobs, and executes jobs.
@@ -9,6 +8,8 @@ use log::*;
 pub struct Scheduler {
     /// The currently scheduled lob list
     jobs: Vec<Job>,
+    /// Interface to current time
+    clock: Option<Box<dyn Timekeeper>>,
 }
 
 impl Scheduler {
@@ -16,6 +17,31 @@ impl Scheduler {
     pub fn new() -> Self {
         pretty_env_logger::init();
         Self::default()
+    }
+
+    /// Instantiate with mocked time
+    #[cfg(test)]
+    fn with_mock_time(clock: crate::time::mock::MockTime) -> Self {
+        let mut ret = Self::new();
+        ret.clock = Some(Box::new(clock));
+        ret
+    }
+
+    /// Advance all clocks by a certain duration
+    #[cfg(test)]
+    fn bump_times(&mut self, duration: chrono::Duration) -> Result<()> {
+        self.clock.as_mut().unwrap().add_duration(duration);
+        for job in &mut self.jobs {
+            job.add_duration(duration);
+        }
+        self.run_pending()?;
+        Ok(())
+    }
+
+    /// Helper function to get the current time
+    fn now(&self) -> Timestamp {
+        // unwrap is safe, there will always be one
+        self.clock.as_ref().unwrap().now()
     }
 
     /// Add a new job to the list
@@ -97,6 +123,74 @@ impl Scheduler {
 
     /// Number of seconds until next run.  None if no jobs scheduled
     pub fn idle_seconds(&self) -> Option<i64> {
-        Some((self.next_run()? - Local::now()).num_seconds())
+        Some((self.next_run()? - self.now()).num_seconds())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        error::Result,
+        time::mock::{MockTime, START},
+        Interval,
+    };
+    use chrono::Duration;
+    use pretty_assertions::assert_eq;
+
+    /// Overshadow scheduler, every() and every_single() to use our clock instead
+    fn setup() -> (Scheduler, impl Fn(Interval) -> Job, impl Fn() -> Job) {
+        let clock = MockTime::default();
+        let scheduler = Scheduler::with_mock_time(clock);
+
+        let every = move |interval: Interval| -> Job { Job::with_mock_time(interval, clock) };
+
+        let every_single = move || -> Job { Job::with_mock_time(1, clock) };
+
+        (scheduler, every, every_single)
+    }
+
+    /// Empty mock job
+    fn job() {}
+
+    #[test]
+    fn test_two_jobs() -> Result<()> {
+        let (mut scheduler, every, every_single) = setup();
+
+        assert_eq!(scheduler.idle_seconds(), None);
+
+        every(17).seconds()?.run(&mut scheduler, job)?;
+        assert_eq!(scheduler.idle_seconds(), Some(17));
+
+        every_single().minute()?.run(&mut scheduler, job)?;
+        assert_eq!(scheduler.idle_seconds(), Some(17));
+        assert_eq!(scheduler.next_run(), Some(*START + Duration::seconds(17)));
+
+        scheduler.bump_times(Duration::seconds(17))?;
+        assert_eq!(
+            scheduler.next_run(),
+            Some(*START + Duration::seconds(17 * 2))
+        );
+
+        scheduler.bump_times(Duration::seconds(17))?;
+        assert_eq!(
+            scheduler.next_run(),
+            Some(*START + Duration::seconds(17 * 3))
+        );
+
+        // This time, we should hit the minute mark next, not the next 17 second mark
+        scheduler.bump_times(Duration::seconds(17))?;
+        assert_eq!(scheduler.idle_seconds(), Some(9));
+        assert_eq!(scheduler.next_run(), Some(*START + Duration::minutes(1)));
+
+        // Afterwards, back to the 17 second job
+        scheduler.bump_times(Duration::seconds(9))?;
+        assert_eq!(scheduler.idle_seconds(), Some(8));
+        assert_eq!(
+            scheduler.next_run(),
+            Some(*START + Duration::seconds(17 * 4))
+        );
+
+        Ok(())
     }
 }
