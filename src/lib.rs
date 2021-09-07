@@ -48,68 +48,13 @@
 //! }
 //! ```
 
-use chrono::{prelude::*, Duration};
-use std::fmt;
-
 mod callable;
 mod error;
 mod job;
 mod scheduler;
+mod time;
 
 use callable::{Callable, UnitToUnit};
-pub use job::{every, every_single, Job};
+pub use job::{every, every_single, Interval, Job, Tag};
 pub use scheduler::Scheduler;
-
-/// Each interval value is an unsigned 32-bit integer
-type Interval = u32;
-
-/// A Tag is used to categorize a job.
-type Tag = String;
-
-/// Timestamps are in the users local timezone
-type Timestamp = DateTime<Local>;
-
-/// Jobs can be periodic over one of these units of time
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TimeUnit {
-    Second,
-    Minute,
-    Hour,
-    Day,
-    Week,
-    Month,
-    Year,
-}
-
-impl TimeUnit {
-    /// Get a chrono::Duration from an interval based on time unit
-    fn duration(&self, interval: u32) -> Duration {
-        use TimeUnit::*;
-        let interval = interval as i64;
-        match self {
-            Second => Duration::seconds(interval),
-            Minute => Duration::minutes(interval),
-            Hour => Duration::hours(interval),
-            Day => Duration::days(interval),
-            Week => Duration::weeks(interval),
-            Month => Duration::weeks(interval * 4),
-            Year => Duration::weeks(interval * 52),
-        }
-    }
-}
-
-impl fmt::Display for TimeUnit {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use TimeUnit::*;
-        let s = match self {
-            Second => "second",
-            Minute => "minute",
-            Hour => "hour",
-            Day => "day",
-            Week => "week",
-            Month => "month",
-            Year => "year",
-        };
-        write!(f, "{}", s)
-    }
-}
+use time::{TimeUnit, Timekeeper, Timestamp};

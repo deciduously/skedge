@@ -24,7 +24,6 @@ thiserror = "1"
 
 [dev-dependencies]
 
-mockall = "0.10"
 pretty_assertions = "0.7"
 
 [profile]

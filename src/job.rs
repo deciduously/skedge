@@ -12,7 +12,15 @@ use std::{
     fmt,
 };
 
-use crate::{error::*, Callable, Interval, Scheduler, Tag, TimeUnit, Timestamp, UnitToUnit};
+use crate::{
+    error::*, time::RealTime, Callable, Scheduler, TimeUnit, Timekeeper, Timestamp, UnitToUnit,
+};
+
+/// A Tag is used to categorize a job.
+pub type Tag = String;
+
+/// Each interval value is an unsigned 32-bit integer
+pub type Interval = u32;
 
 lazy_static! {
     // Regexes for validating `.at()` strings are only computed once
@@ -64,6 +72,8 @@ pub struct Job {
     start_day: Option<Weekday>,
     /// Optional time of final run
     cancel_after: Option<Timestamp>,
+    /// Interface to current time
+    clock: Option<Box<dyn Timekeeper>>,
 }
 
 impl Job {
@@ -80,7 +90,39 @@ impl Job {
             period: None,
             start_day: None,
             cancel_after: None,
+            clock: Some(Box::new(RealTime::default())),
         }
+    }
+
+    #[cfg(test)]
+    /// Build a job with a fake timer
+    pub fn with_mock_time(interval: Interval, clock: crate::time::mock::MockTime) -> Self {
+        Self {
+            interval,
+            latest: None,
+            job: None,
+            tags: HashSet::new(),
+            unit: None,
+            at_time: None,
+            last_run: None,
+            next_run: None,
+            period: None,
+            start_day: None,
+            cancel_after: None,
+            clock: Some(Box::new(clock)),
+        }
+    }
+
+    #[cfg(test)]
+    /// Add a duration to the clock
+    pub fn add_duration(&mut self, duration: Duration) {
+        self.clock.as_mut().unwrap().add_duration(duration);
+    }
+
+    /// Helper function to get the current time
+    fn now(&self) -> Timestamp {
+        // unwrap is safe, there will always be one
+        self.clock.as_ref().unwrap().now()
     }
 
     /// Tag the job with one or more unique identifiers
@@ -187,7 +229,7 @@ impl Job {
     ///
     ///
     pub fn until(mut self, until_time: Timestamp) -> Result<Self> {
-        if until_time < Local::now() {
+        if until_time < self.now() {
             return Err(SkedgeError::InvalidUntilTime);
         }
         self.cancel_after = Some(until_time);
@@ -205,7 +247,7 @@ impl Job {
 
     /// Check whether this job should be run now
     pub fn should_run(&self) -> bool {
-        self.next_run.is_some() && Local::now() >= self.next_run.unwrap()
+        self.next_run.is_some() && self.now() >= self.next_run.unwrap()
     }
 
     /// Run this job and immediately reschedule it, returning true.  If job should cancel, return false.
@@ -215,7 +257,7 @@ impl Job {
     /// If this execution causes the deadline to reach, it will run once and then return false.
     // FIXME: if we support return values from job fns, this fn should return that.
     pub fn execute(&mut self) -> Result<bool> {
-        if self.is_overdue(Local::now()) {
+        if self.is_overdue(self.now()) {
             debug!("Deadline already reached, cancelling job {}", self);
             return Ok(false);
         }
@@ -227,10 +269,10 @@ impl Job {
         }
         // FIXME - here's the return value capture
         let _ = self.job.as_ref().unwrap().call();
-        self.last_run = Some(Local::now());
+        self.last_run = Some(self.now());
         self.schedule_next_run()?;
 
-        if self.is_overdue(Local::now()) {
+        if self.is_overdue(self.now()) {
             debug!("Execution went over deadline, cancelling job {}", self);
             return Ok(false);
         }
@@ -390,7 +432,7 @@ impl Job {
         // Calculate period (Duration)
         let period = self.unit.unwrap().duration(interval);
         self.period = Some(period);
-        self.next_run = Some(Local::now() + period);
+        self.next_run = Some(self.now() + period);
 
         // Handle start day for weekly jobs
         if let Some(w) = self.start_day {
@@ -452,7 +494,7 @@ impl Job {
             if self.last_run.is_none()
                 || (self.next_run.unwrap() - self.last_run.unwrap()) > self.period.unwrap()
             {
-                let now = Local::now();
+                let now = self.now();
                 if self.unit == Some(Day)
                     && self.at_time.unwrap() > now.time()
                     && self.interval == 1
@@ -475,7 +517,7 @@ impl Job {
         if self.start_day.is_some() && self.at_time.is_some() {
             // unwraps are safe, we already set them in this function
             let next = self.next_run.unwrap(); // safe, we already set it
-            if (next - Local::now()).num_days() >= 7 {
+            if (next - self.now()).num_days() >= 7 {
                 self.next_run = Some(next - self.period.unwrap());
             }
         }
