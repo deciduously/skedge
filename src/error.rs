@@ -1,10 +1,10 @@
 //! This module defines the error type and Result alias.
 
-use super::TimeUnit;
+use crate::TimeUnit;
 use chrono::Weekday;
 use thiserror::Error;
 
-#[derive(Debug, Error)]
+#[derive(Debug, PartialEq, Error)]
 pub enum SkedgeError {
     #[error("Use {0}s() instead of {0}()")]
     Interval(TimeUnit),
@@ -16,11 +16,11 @@ pub enum SkedgeError {
     InvalidUnit,
     #[error("Invalid hour ({0} is not between 0 and 23)")]
     InvalidHour(u32),
-    #[error("Invalid time format for daily job (valid format is HH:MM(:SS)?")]
+    #[error("Invalid time format for daily job (valid format is HH:MM(:SS)?)")]
     InvalidDailyAtStr,
-    #[error("Invalid time format for hourly job (valid format is (MM)?:SS")]
+    #[error("Invalid time format for hourly job (valid format is (MM)?:SS)")]
     InvalidHourlyAtStr,
-    #[error("Invalid time format for minutely job (valid format is :SS")]
+    #[error("Invalid time format for minutely job (valid format is :SS)")]
     InvalidMinuteAtStr,
     #[error("Invalid string format for until()")]
     InvalidUntilStr,

@@ -1,13 +1,11 @@
 # skedge
 
 [![Crates.io](https://img.shields.io/crates/v/skedge.svg)](https://crates.io/crates/skedge)
-[![GitHub Workflow Status](https://img.shields.io/github/workflow/status/deciduously/skedge/rust)](https://github.com/deciduously/skedge/actions/workflows/rust.yml)
-
-**WIP - USE AT OWN RISK**
+[![rust action](https://github.com/deciduously/skedge/actions/workflows/rust.yml/badge.svg)](https://github.com/deciduously/skedge/actions/workflows/rust.yml)
 
 Rust single-process scheduling.  Ported from [`schedule`](https://github.com/dbader/schedule) for Python, in turn inspired by [`clockwork`](https://github.com/Rykian/clockwork) (Ruby), and ["Rethinking Cron"](https://adam.herokuapp.com/past/2010/4/13/rethinking_cron/) by [Adam Wiggins](https://github.com/adamwiggins).
 
-While most of it should work, only jobs which take no parameters and return nothing can be scheduled.  Also, I haven't written tests yet, so there's really no guarantee any of it works like it should.  This is a pre-release.  Stay tuned.
+**NOTE**: This library is currently limited to jobs which take no arguments and return nothing.
 
 ## Usage
 
@@ -71,3 +69,8 @@ Clone this repo.  See [`CONTRIBUTING.md`](https://github.com/deciduously/skedge/
 * [rand](https://rust-random.github.io/book/) - Random number generation
 * [regex](https://github.com/rust-lang/regex) - Regular expressions
 * [thiserror](https://github.com/dtolnay/thiserror) - Error derive macro
+
+#### Development-Only
+
+ * [mockall](https://github.com/asomers/mockall) - Mock objects
+ * [pretty_assertions](https://github.com/colin-kiegel/rust-pretty-assertions) - Colorful assertion output
