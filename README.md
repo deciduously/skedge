@@ -3,11 +3,9 @@
 [![Crates.io](https://img.shields.io/crates/v/skedge.svg)](https://crates.io/crates/skedge)
 [![rust action](https://github.com/deciduously/skedge/actions/workflows/rust.yml/badge.svg)](https://github.com/deciduously/skedge/actions/workflows/rust.yml)
 
-**WIP - USE AT OWN RISK**
-
 Rust single-process scheduling.  Ported from [`schedule`](https://github.com/dbader/schedule) for Python, in turn inspired by [`clockwork`](https://github.com/Rykian/clockwork) (Ruby), and ["Rethinking Cron"](https://adam.herokuapp.com/past/2010/4/13/rethinking_cron/) by [Adam Wiggins](https://github.com/adamwiggins).
 
-While most of it should work, only jobs which take no parameters and return nothing can be scheduled.  Also, I haven't written tests yet, so there's really no guarantee any of it works like it should.  This is a pre-release.  Stay tuned.
+**NOTE**: This library is currently limited to jobs which take no arguments and return nothing.
 
 ## Usage
 
