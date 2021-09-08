@@ -59,4 +59,4 @@ pub(crate) fn weekday_collision_error(intended: Weekday, existing: Weekday) -> S
     SkedgeError::WeekdayCollision(intended, existing)
 }
 
-pub(crate) type Result<T> = std::result::Result<T, SkedgeError>;
+pub type Result<T> = std::result::Result<T, SkedgeError>;

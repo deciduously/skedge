@@ -1,6 +1,6 @@
 //! The scheduler is responsible for managing all scheduled jobs.
 
-use crate::{error::*, Job, Tag, Timekeeper, Timestamp};
+use crate::{Result, Job, Tag, Timekeeper, Timestamp};
 use log::*;
 
 /// A Scheduler creates jobs, tracks recorded jobs, and executes jobs.

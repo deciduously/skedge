@@ -12,9 +12,7 @@ use std::{
     fmt,
 };
 
-use crate::{
-    error::*, time::RealTime, Callable, Scheduler, TimeUnit, Timekeeper, Timestamp, UnitToUnit,
-};
+use crate::*;
 
 /// A Tag is used to categorize a job.
 pub type Tag = String;
@@ -149,6 +147,20 @@ impl Job {
     /// * Minute jobs: `:SS`
     ///
     /// Not supported on weekly, monthly, or yearly jobs.
+    ///
+    /// ```rust
+    /// # use skedge::*;
+    /// # fn job() {}
+    /// # fn main() -> Result<()> {
+    /// # let mut scheduler = Scheduler::new();
+    /// every(3).minutes()?.at(":15")?.run(&mut scheduler, job)?;
+    /// every_single().hour()?.at(":30")?.run(&mut scheduler, job)?;
+    /// every(12).hours()?.at("08:45")?.run(&mut scheduler, job)?;
+    /// every_single().wednesday()?.at("13:30")?.run(&mut scheduler, job)?;
+    /// every(10).days()?.at("00:00:12")?.run(&mut scheduler, job)?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn at(mut self, time_str: &str) -> Result<Self> {
         use TimeUnit::*;
 
@@ -184,11 +196,15 @@ impl Job {
         } else if num_vals == 2 && self.unit == Some(Minute) {
             second = time_vals[1].parse().unwrap();
         } else if num_vals == 2 && self.unit == Some(Hour) {
-            minute = time_vals[0].parse().unwrap();
+            minute = if time_vals[0].len() > 0 {
+                time_vals[0].parse().unwrap()
+            } else {
+                0
+            };
             second = time_vals[1].parse().unwrap();
         } else {
             hour = time_vals[0].parse().unwrap();
-            minute = time_vals[0].parse().unwrap();
+            minute = time_vals[1].parse().unwrap();
         }
 
         if self.unit == Some(Day) || self.start_day.is_some() {
@@ -207,9 +223,17 @@ impl Job {
         Ok(self)
     }
 
-    /// Schedule the job to run at a regular randomized interval.
+    /// Schedule the job to run at a randomized interval between two extremes.
     ///
-    /// E.g. every(3).to(6).seconds
+    /// ```rust
+    /// # use skedge::*;
+    /// # fn job() {}
+    /// # fn main() -> Result<()> {
+    /// # let mut scheduler = Scheduler::new();
+    /// every(3).to(6)?.seconds()?.run(&mut scheduler, job)?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn to(mut self, latest: Interval) -> Result<Self> {
         if latest <= self.interval {
             Err(SkedgeError::InvalidInterval)
@@ -227,7 +251,17 @@ impl Job {
     /// the job was scheduled to run before until_time, but runs after until_time.
     /// If until_time is a moment in the past, returns an error.
     ///
-    ///
+    /// ```rust
+    /// # use skedge::*;
+    /// # fn job() {}
+    /// # fn main() -> Result<()> {
+    /// # let mut scheduler = Scheduler::new();
+    /// use chrono::Duration;
+    /// let deadline = chrono::Local::now() + Duration::minutes(10);
+    /// every_single().minute()?.at(":15")?.until(deadline)?.run(&mut scheduler, job)?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn until(mut self, until_time: Timestamp) -> Result<Self> {
         if until_time < self.now() {
             return Err(SkedgeError::InvalidUntilTime);
@@ -237,9 +271,89 @@ impl Job {
     }
 
     /// Specify the work function that will execute when this job runs and add it to the schedule
+    ///
+    /// ```rust
+    /// # use skedge::*;
+    /// fn job() {
+    ///     println!("Hello!");
+    /// }
+    /// # fn main() -> Result<()> {
+    /// # let mut scheduler = Scheduler::new();
+    ///
+    /// every(10).seconds()?.run(&mut scheduler, job)?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn run(mut self, scheduler: &mut Scheduler, job: fn() -> ()) -> Result<()> {
-        // FIXME how does job naming work?  without reflection?
         self.job = Some(Box::new(UnitToUnit::new("job", job)));
+        self.schedule_next_run()?;
+        scheduler.add_job(self);
+        Ok(())
+    }
+
+    /// Specify the work function with one argument that will execute when this job runs and add it to the schedule
+    ///
+    /// ```rust
+    /// # use skedge::*;
+    /// fn job(name: &str) {
+    ///     println!("Hello, {}!", name);
+    /// }
+    /// # fn main() -> Result<()> {
+    /// # let mut scheduler = Scheduler::new();
+    ///
+    /// every(10)
+    ///     .seconds()?
+    ///     .run_one_arg(&mut scheduler, job, "Good-Looking")?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn run_one_arg<T>(
+        mut self,
+        scheduler: &mut Scheduler,
+        job: fn(T) -> (),
+        arg: T,
+    ) -> Result<()>
+    where
+        T: 'static + Clone,
+    {
+        self.job = Some(Box::new(OneToUnit::new("job_one_arg", job, arg)));
+        self.schedule_next_run()?;
+        scheduler.add_job(self);
+        Ok(())
+    }
+
+    /// Specify the work function with two arguments that will execute when this job runs and add it to the schedule
+    /// ```rust
+    /// # use skedge::*;
+    /// fn job(name: &str, time: &str) {
+    ///     println!("Hello, {}!  What are you doing {}?", name, time);
+    /// }
+    /// # fn main() -> Result<()> {
+    /// # let mut scheduler = Scheduler::new();
+    ///
+    /// every(10)
+    ///     .seconds()?
+    ///     .run_two_args(&mut scheduler, job, "Good-Looking", "this weekend")?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn run_two_args<T, U>(
+        mut self,
+        scheduler: &mut Scheduler,
+        job: fn(T, U) -> (),
+        arg_one: T,
+        arg_two: U,
+    ) -> Result<()>
+    where
+        T: 'static + Clone,
+        U: 'static + Clone,
+    {
+        self.job = Some(Box::new(TwoToUnit::new(
+            "job_one_arg",
+            job,
+            arg_one,
+            arg_two,
+        )));
         self.schedule_next_run()?;
         scheduler.add_job(self);
         Ok(())
