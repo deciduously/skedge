@@ -1,4 +1,4 @@
-.PHONY: demo deps so
+.PHONY: clean demo deps so run
 
 LIBNAME=skedge
 EXE=$(LIBNAME)_demo
