@@ -2,10 +2,16 @@
 //!
 //! `skedge` is a single-process job scheduler.
 //!
-//! Define a work function.  Currently, this is restricted to functions which take no arguments and return nothing:
+//! Define a work function:
 //! ```rust
 //! fn job() {
-//!     println!("Hello, it's {}!", chrono::Local::now());
+//!     println!("Hello, it's {}!", chrono::Local::now().to_rfc2822());
+//! }
+//! ```
+//! You can use up to six arguments:
+//! ```rust
+//! fn greet(name: &str) {
+//!     println!("Hello, {}!", name);
 //! }
 //! ```
 //! Instantiate a `Scheduler` and schedule jobs:
@@ -16,6 +22,9 @@
 //! # use std::thread::sleep;
 //! # fn job() {
 //! #    println!("Hello, it's {}!", Local::now());
+//! # }
+//! # fn greet(name: &str) {
+//! #     println!("Hello, {}!", name);
 //! # }
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let mut schedule = Scheduler::new();
@@ -29,13 +38,14 @@
 //! every_single().wednesday()?.at("13:15")?.run(&mut schedule, job)?;
 //! every_single().minute()?.at(":17")?.run(&mut schedule, job)?;
 //! every(2)
-//!    .to(8)?
-//!    .seconds()?
-//!    .until(Local::now() + chrono::Duration::seconds(30))?
-//!    .run(&mut schedule, job)?;
+//!     .to(8)?
+//!     .seconds()?
+//!     .until(Local::now() + chrono::Duration::seconds(30))?
+//!     .run_one_arg(&mut schedule, greet, "Good-Looking")?;
 //! #   Ok(())
 //! # }
 //! ```
+//! Note that you must use the appropriate run_x_args() method for job functions taking multiple arguments.
 //! In your main loop, you can use `Scheduler::run_pending()` to fire all scheduled jobs at the proper time:
 //! ```no_run
 //! # use skedge::Scheduler;
@@ -54,7 +64,8 @@ mod job;
 mod scheduler;
 mod time;
 
-use callable::{Callable, UnitToUnit};
+use callable::*;
+pub use error::*;
 pub use job::{every, every_single, Interval, Job, Tag};
 pub use scheduler::Scheduler;
-use time::{TimeUnit, Timekeeper, Timestamp};
+use time::{RealTime, TimeUnit, Timekeeper, Timestamp};

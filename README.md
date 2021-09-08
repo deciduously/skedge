@@ -2,11 +2,9 @@
 
 [![Crates.io](https://img.shields.io/crates/v/skedge.svg)](https://crates.io/crates/skedge)
 [![rust action](https://github.com/deciduously/skedge/actions/workflows/rust.yml/badge.svg)](https://github.com/deciduously/skedge/actions/workflows/rust.yml)
-[![docs.rs](https://img.shields.io/docsrs/skedge)](https://docs.rs/skedge/)
+[![docs.rs](https://img.shields.io/docsrs/skedge/0.1.0)](https://docs.rs/skedge/0.1.0)
 
 Rust single-process scheduling.  Ported from [`schedule`](https://github.com/dbader/schedule) for Python, in turn inspired by [`clockwork`](https://github.com/Rykian/clockwork) (Ruby), and ["Rethinking Cron"](https://adam.herokuapp.com/past/2010/4/13/rethinking_cron/) by [Adam Wiggins](https://github.com/adamwiggins).
-
-**NOTE**: This library is currently limited to jobs which take no arguments and return nothing.
 
 ## Usage
 
@@ -16,30 +14,22 @@ This library uses the Builder pattern to define jobs.  Instantiate a fresh `Sche
 
 ```rust
 use chrono::Local;
-use skedge::{every, every_single, Scheduler};
+use skedge::{every, Scheduler};
 use std::thread::sleep;
 use std::time::Duration;
 
-fn job() {
-    println!("Hello, it's {}!", Local::now());
+fn greet(name: &str) {
+    println!("Hello {}, it's {}!", name, Local::now().to_rfc2822());
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut schedule = Scheduler::new();
 
-    every(10).seconds()?.run(&mut schedule, job)?;
-    every(10).minutes()?.run(&mut schedule, job)?;
-    every_single().hour()?.run(&mut schedule, job)?;
-    every_single().day()?.at("10:30")?.run(&mut schedule, job);
-    every(5).to(10)?.minutes()?.run(&mut schedule, job);
-    every_single().monday()?.run(&mut schedule, job);
-    every_single().wednesday()?.at("13:15")?.run(&mut schedule, job);
-    every_single().minute()?.at(":17")?.run(&mut schedule, job);
     every(2)
         .to(8)?
         .seconds()?
         .until(Local::now() + chrono::Duration::seconds(30))?
-        .run(&mut schedule, job)?;
+        .run_one_arg(&mut schedule, greet, "Good-Looking")?;
 
     println!("Starting at {}", Local::now());
     loop {
@@ -51,7 +41,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-Try `cargo run --example basic` to see it in action.
+Check out the [example script](https://github.com/deciduously/skedge/blob/main/examples/basic.rs) to see more configuration options.  Try `cargo run --example readme` or `cargo run --example basic` to see it in action.
 
 ## Development
 
@@ -73,5 +63,4 @@ Clone this repo.  See [`CONTRIBUTING.md`](https://github.com/deciduously/skedge/
 
 #### Development-Only
 
- * [mockall](https://github.com/asomers/mockall) - Mock objects
  * [pretty_assertions](https://github.com/colin-kiegel/rust-pretty-assertions) - Colorful assertion output
