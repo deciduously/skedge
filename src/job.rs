@@ -196,7 +196,7 @@ impl Job {
         } else if num_vals == 2 && self.unit == Some(Minute) {
             second = time_vals[1].parse().unwrap();
         } else if num_vals == 2 && self.unit == Some(Hour) {
-            minute = if time_vals[0].len() > 0 {
+            minute = if !time_vals[0].is_empty() {
                 time_vals[0].parse().unwrap()
             } else {
                 0
@@ -471,6 +471,7 @@ impl Job {
     /// # Ok(())
     /// # }
     /// ```
+    #[allow(clippy::too_many_arguments)]
     pub fn run_five_args<T, U, V, W, X>(
         mut self,
         scheduler: &mut Scheduler,
@@ -532,6 +533,7 @@ impl Job {
     /// # Ok(())
     /// # }
     /// ```
+    #[allow(clippy::too_many_arguments)]
     pub fn run_six_args<T, U, V, W, X, Y>(
         mut self,
         scheduler: &mut Scheduler,

@@ -3,7 +3,7 @@
 use std::fmt;
 
 /// A job is anything that implements this trait
-pub(crate) trait Callable {
+pub trait Callable {
     /// Execute this callable
     fn call(&self) -> Option<bool>;
     /// Get the name of this callable
@@ -347,6 +347,7 @@ where
     X: Clone,
     Y: Clone,
 {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         name: &str,
         work: fn(T, U, V, W, X, Y) -> (),

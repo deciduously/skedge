@@ -43,6 +43,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 Check out the [example script](https://github.com/deciduously/skedge/blob/main/examples/basic.rs) to see more configuration options.  Try `cargo run --example readme` or `cargo run --example basic` to see it in action.
 
+To use the CFFI, you must enable the `ffi` feature in `Cargo.toml`:
+
+```toml
+[dependencies]
+
+skedge = { version = "0.1.1", features = ["ffi"] }
+```
+
 ## Development
 
 Clone this repo.  See [`CONTRIBUTING.md`](https://github.com/deciduously/skedge/blob/main/CONTRIBUTING.md) for contribution guidelines.
