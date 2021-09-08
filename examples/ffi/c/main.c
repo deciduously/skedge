@@ -48,6 +48,8 @@ void job(void)
 
 int main(void)
 {
+    printf("Starting at %s\n", now());
+    
     // Instantiate
     scheduler_t *scheduler = scheduler_new();
 

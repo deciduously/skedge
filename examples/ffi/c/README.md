@@ -1,14 +1,11 @@
 # CFFI
 
-This directory demonstrates how to use `skedge` from C.
+This directory demonstrates how to use `skedge` from C.  Must have GCC and GNU Make installed.
 
 ## Usage
 
 ```
 $ git clone https://github.com/deciduously/skedge
 $ cd skedge
-$ cargo build --release
-$ cc -o skedge_demo -L ./target/release -l skedge ./examples/ffi/c/main.c
+$ make run
 ```
-
-This will place a `skedge_demo` executable in the top level of the project.
