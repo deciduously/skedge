@@ -7,8 +7,13 @@ fn job() {
     println!("Hello, it's {}!", Local::now().to_rfc2822());
 }
 
-fn greet(name: &str) {
-    println!("Hello {}, it's {}!", name, Local::now().to_rfc2822());
+fn flirt(name: &str, time: &str, hour: u8, jackpot: f32, restaurant: &str, meal: &str) {
+    println!(
+        "Hello, {}!  What are you doing {}?  I'm free around {}.  \
+        I just won ${:.*} off a scratch ticket, you can get anything you want.  \
+        Have you ever been to {}?  They're getting rave reviews over their {}.",
+        name, time, hour, 2, jackpot, restaurant, meal
+    );
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -34,8 +39,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     every(2)
         .to(8)?
         .seconds()?
-        .until(Local::now() + chrono::Duration::seconds(30))?
-        .run_one_arg(&mut schedule, greet, "Good-Looking")?;
+        .until(Local::now() + chrono::Duration::days(5))?
+        .run_six_args(
+            &mut schedule,
+            flirt,
+            "Good-Looking",
+            "Friday",
+            7,
+            40.,
+            "Dorsia",
+            "foraged chanterelle croque monsieur",
+        )?;
 
     println!("Starting at {}", Local::now().to_rfc3339());
     loop {

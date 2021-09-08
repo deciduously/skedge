@@ -37,7 +37,6 @@
 //! every_single().monday()?.run(&mut schedule, job)?;
 //! every_single().wednesday()?.at("13:15")?.run(&mut schedule, job)?;
 //! every_single().minute()?.at(":17")?.run(&mut schedule, job)?;
-//! // You must use the appropriate run_x_arg() method:
 //! every(2)
 //!     .to(8)?
 //!     .seconds()?
@@ -46,6 +45,7 @@
 //! #   Ok(())
 //! # }
 //! ```
+//! Note that you must use the appropriate run_x_args() method for job functions taking multiple arguments.
 //! In your main loop, you can use `Scheduler::run_pending()` to fire all scheduled jobs at the proper time:
 //! ```no_run
 //! # use skedge::Scheduler;
@@ -68,4 +68,4 @@ use callable::*;
 pub use error::*;
 pub use job::{every, every_single, Interval, Job, Tag};
 pub use scheduler::Scheduler;
-use time::{TimeUnit, Timekeeper, Timestamp, RealTime};
+use time::{RealTime, TimeUnit, Timekeeper, Timestamp};
