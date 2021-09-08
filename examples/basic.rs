@@ -1,3 +1,5 @@
+// Some more varied usage examples.
+
 use chrono::Local;
 use skedge::{every, every_single, Scheduler};
 use std::thread::sleep;

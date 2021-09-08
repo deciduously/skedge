@@ -14,7 +14,7 @@ This library uses the Builder pattern to define jobs.  Instantiate a fresh `Sche
 
 ```rust
 use chrono::Local;
-use skedge::{every, every_single, Scheduler};
+use skedge::{every, Scheduler};
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -29,7 +29,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .to(8)?
         .seconds()?
         .until(Local::now() + chrono::Duration::seconds(30))?
-        .run_one_arg(&mut schedule, job)?;
+        .run_one_arg(&mut schedule, greet, "Good-Looking")?;
 
     println!("Starting at {}", Local::now());
     loop {
@@ -41,7 +41,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-Check out the [example script](https://github.com/deciduously/skedge/blob/main/examples/basic.rs) to see more configuration options.  Try `cargo run --example basic` to see it in action.
+Check out the [example script](https://github.com/deciduously/skedge/blob/main/examples/basic.rs) to see more configuration options.  Try `cargo run --example readme` or `cargo run --example basic` to see it in action.
 
 ## Development
 
