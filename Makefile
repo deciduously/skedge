@@ -20,7 +20,7 @@ $(SO_PATH):
 
 clean:
 	@rm -r $(SO_PATH)
-	@rm -f rm $(EXE)
+	@rm -r $(EXE)
 
 run: clean $(EXE)
 	LD_LIBRARY_PATH=$(LD_PATH) ./$(EXE)
