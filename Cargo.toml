@@ -17,7 +17,7 @@ repository = "https://github.com/deciduously/skedge"
 crate-type = ["rlib", "cdylib"]
 
 [features]
-default = ["ffi"] # REMOVE WHEN DONE
+default = []
 ffi = []
 
 [dependencies]

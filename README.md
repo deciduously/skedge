@@ -2,7 +2,7 @@
 
 [![Crates.io](https://img.shields.io/crates/v/skedge.svg)](https://crates.io/crates/skedge)
 [![rust action](https://github.com/deciduously/skedge/actions/workflows/rust.yml/badge.svg)](https://github.com/deciduously/skedge/actions/workflows/rust.yml)
-[![docs.rs](https://img.shields.io/docsrs/skedge/0.1.0)](https://docs.rs/skedge/0.1.0)
+[![docs.rs](https://img.shields.io/docsrs/skedge/0.1.1)](https://docs.rs/skedge/0.1.1)
 
 Rust single-process scheduling.  Ported from [`schedule`](https://github.com/dbader/schedule) for Python, in turn inspired by [`clockwork`](https://github.com/Rykian/clockwork) (Ruby), and ["Rethinking Cron"](https://adam.herokuapp.com/past/2010/4/13/rethinking_cron/) by [Adam Wiggins](https://github.com/adamwiggins).
 
@@ -43,13 +43,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 Check out the [example script](https://github.com/deciduously/skedge/blob/main/examples/basic.rs) to see more configuration options.  Try `cargo run --example readme` or `cargo run --example basic` to see it in action.
 
-To use the CFFI, you must enable the `ffi` feature in `Cargo.toml`:
+### CFFI
 
-```toml
-[dependencies]
-
-skedge = { version = "0.1.1", features = ["ffi"] }
-```
+There is an **experimental** C foreign function interface, which is feature-gated and not included by default.  To build the library with this feature, use `cargo build --features ffi`.  See the [Makefile](https://github.com/deciduously/skedge/blob/main/Makefile) and [examples/ffi/c](https://github.com/deciduously/skedge/tree/main/examples/ffi/c) directory for details on using this library from C.  Execute `make run` to build and execute the included example C program.  It currently **only** supports work functions which take no arguments.
 
 ## Development
 

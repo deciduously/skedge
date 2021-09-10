@@ -12,6 +12,8 @@ use std::{
     fmt,
 };
 
+#[cfg(feature = "ffi")]
+use crate::callable::ffi::*;
 use crate::*;
 
 /// A Tag is used to categorize a job.
@@ -291,6 +293,18 @@ impl Job {
         Ok(())
     }
 
+    #[cfg(feature = "ffi")]
+    pub fn run_extern(
+        mut self,
+        scheduler: &mut Scheduler,
+        job: extern "C" fn() -> (),
+    ) -> Result<()> {
+        self.job = Some(Box::new(ExternUnitToUnit::new("job", job)));
+        self.schedule_next_run()?;
+        scheduler.add_job(self);
+        Ok(())
+    }
+
     /// Specify the work function with one argument that will execute when this job runs and add it to the schedule
     ///
     /// ```rust
@@ -321,6 +335,23 @@ impl Job {
         scheduler.add_job(self);
         Ok(())
     }
+
+    // NOTE: Doesn't work, can't use a generic fn as FFI boundary interface
+    // #[cfg(feature = "ffi")]
+    // pub fn run_one_arg_extern<T>(
+    //     mut self,
+    //     scheduler: &mut Scheduler,
+    //     job: extern "C" fn(T) -> (),
+    //     arg: T,
+    // ) -> Result<()>
+    // where
+    //     T: 'static + Clone,
+    // {
+    //     self.job = Some(Box::new(ExternOneToUnit::new("job_one_arg", job, arg)));
+    //     self.schedule_next_run()?;
+    //     scheduler.add_job(self);
+    //     Ok(())
+    // }
 
     /// Specify the work function with two arguments that will execute when this job runs and add it to the schedule
     /// ```rust

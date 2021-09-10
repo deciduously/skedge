@@ -69,7 +69,11 @@ pub unsafe extern "C" fn every_single() -> *mut Job {
 ///
 ///  This function crosses the FFI barrier and is therefore inherently unsafe.
 #[no_mangle]
-pub unsafe extern "C" fn run(job: *mut Job, scheduler: *mut Scheduler, work: *const fn() -> ()) {
+pub unsafe extern "C" fn run(
+    job: *mut Job,
+    scheduler: *mut Scheduler,
+    work: extern "C" fn() -> (),
+) {
     let job = {
         assert!(!job.is_null());
         Box::from_raw(job)
@@ -78,13 +82,8 @@ pub unsafe extern "C" fn run(job: *mut Job, scheduler: *mut Scheduler, work: *co
         assert!(!scheduler.is_null());
         &mut *scheduler
     };
-    // This is super DUPER unsafe - basically you just gotta use it right in C.
-    let work: &fn() -> () = {
-        assert!(!work.is_null());
-        &*work
-    };
 
-    job.run(&mut scheduler, *work)
+    job.run_extern(&mut scheduler, work)
         .unwrap_or_else(|e| eprintln!("Error: {}", e));
 }
 
@@ -98,6 +97,7 @@ pub unsafe extern "C" fn run_pending(ptr: *mut Scheduler) {
         assert!(!ptr.is_null());
         &mut *ptr
     };
+
     scheduler
         .run_pending()
         .unwrap_or_else(|e| eprintln!("Error: {}", e));
