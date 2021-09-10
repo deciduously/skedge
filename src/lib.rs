@@ -1,6 +1,7 @@
 //! # skedge
 //!
 //! `skedge` is a single-process job scheduler.
+//! To use the optional CFFI, enable the "ffi" feature.
 //!
 //! Define a work function:
 //! ```rust
@@ -69,3 +70,8 @@ pub use error::*;
 pub use job::{every, every_single, Interval, Job, Tag};
 pub use scheduler::Scheduler;
 use time::{RealTime, TimeUnit, Timekeeper, Timestamp};
+
+#[cfg(feature = "ffi")]
+mod ffi;
+#[cfg(feature = "ffi")]
+pub use ffi::*;

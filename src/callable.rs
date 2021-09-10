@@ -3,7 +3,7 @@
 use std::fmt;
 
 /// A job is anything that implements this trait
-pub(crate) trait Callable {
+pub trait Callable {
     /// Execute this callable
     fn call(&self) -> Option<bool>;
     /// Get the name of this callable
@@ -347,6 +347,7 @@ where
     X: Clone,
     Y: Clone,
 {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         name: &str,
         work: fn(T, U, V, W, X, Y) -> (),
@@ -393,4 +394,78 @@ where
     fn name(&self) -> &str {
         &self.name
     }
+}
+
+#[cfg(feature = "ffi")]
+pub mod ffi {
+    //! The CFFI feature requires different types, defined here
+
+    use super::*;
+
+    /// A named callable function taking no parameters and returning nothing.
+    #[derive(Debug)]
+    pub struct ExternUnitToUnit {
+        name: String,
+        work: extern "C" fn() -> (),
+    }
+
+    impl ExternUnitToUnit {
+        pub fn new(name: &str, work: extern "C" fn() -> ()) -> Self {
+            Self {
+                name: name.into(),
+                work,
+            }
+        }
+    }
+
+    impl Callable for ExternUnitToUnit {
+        fn call(&self) -> Option<bool> {
+            (self.work)();
+            None
+        }
+        fn name(&self) -> &str {
+            &self.name
+        }
+    }
+    /*
+
+    NOTE: This doesn't work - can't use generic interface across boundary, must be mangled
+
+    /// A named callable function taking one parameter and returning nothing.
+    #[derive(Debug)]
+    pub struct ExternOneToUnit<T>
+    where
+        T: Clone,
+    {
+        name: String,
+        work: extern "C" fn(T) -> (),
+        arg: T,
+    }
+
+    impl<T> ExternOneToUnit<T>
+    where
+        T: Clone,
+    {
+        pub fn new(name: &str, work: extern "C" fn(T) -> (), arg: T) -> Self {
+            Self {
+                name: name.into(),
+                work,
+                arg,
+            }
+        }
+    }
+
+    impl<T> Callable for ExternOneToUnit<T>
+    where
+        T: Clone,
+    {
+        fn call(&self) -> Option<bool> {
+            (self.work)(self.arg.clone());
+            None
+        }
+        fn name(&self) -> &str {
+            &self.name
+        }
+    }
+    */
 }
