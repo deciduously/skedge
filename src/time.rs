@@ -87,7 +87,7 @@ pub mod mock {
 
     lazy_static! {
         /// Default starting time
-        pub static ref START: Timestamp = Local.ymd(2021, 1, 1).and_hms(12, 30, 0);
+        pub static ref START: Timestamp = Local.ymd(2021, 1, 1).and_hms(12, 0, 0);
     }
 
     /// Mock the datetime for predictable results.

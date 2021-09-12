@@ -15,7 +15,7 @@ pub struct Scheduler {
 impl Scheduler {
     /// Instantiate a Scheduler
     pub fn new() -> Self {
-        pretty_env_logger::init();
+        let _ = pretty_env_logger::try_init();
         Self::default()
     }
 
@@ -129,13 +129,15 @@ impl Scheduler {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use super::*;
     use crate::{
         error::Result,
         time::mock::{MockTime, START},
         Interval,
     };
-    use chrono::Duration;
+    use chrono::{Duration, Timelike};
     use pretty_assertions::assert_eq;
 
     /// Overshadow scheduler, every() and every_single() to use our clock instead
@@ -190,6 +192,31 @@ mod tests {
             scheduler.next_run(),
             Some(*START + Duration::seconds(17 * 4))
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_time_range() -> Result<()> {
+        let (mut scheduler, every, _) = setup();
+
+        // Set up 100 jobs, store the minute of the next run
+        let num_jobs = 100;
+        let mut minutes = HashSet::with_capacity(num_jobs);
+        for _ in 0..num_jobs {
+            every(5).to(30)?.minutes()?.run(&mut scheduler, job)?;
+            minutes.insert(
+                scheduler.jobs[scheduler.jobs.len() - 1]
+                    .next_run
+                    .unwrap()
+                    .minute(),
+            );
+        }
+
+        // Make sure each job got an appropriate run time
+        assert!(minutes.len() > 1);
+        assert!(minutes.iter().min().unwrap() >= &5);
+        assert!(minutes.iter().max().unwrap() <= &30);
 
         Ok(())
     }
