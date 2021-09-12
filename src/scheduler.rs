@@ -125,6 +125,12 @@ impl Scheduler {
     pub fn idle_seconds(&self) -> Option<i64> {
         Some((self.next_run()? - self.now()).num_seconds())
     }
+
+    /// Get the most recently added job, for testing
+    #[cfg(test)]
+    fn most_recent_job(&self) -> &Job {
+        &self.jobs[self.jobs.len() - 1]
+    }
 }
 
 #[cfg(test)]
@@ -205,18 +211,43 @@ mod tests {
         let mut minutes = HashSet::with_capacity(num_jobs);
         for _ in 0..num_jobs {
             every(5).to(30)?.minutes()?.run(&mut scheduler, job)?;
-            minutes.insert(
-                scheduler.jobs[scheduler.jobs.len() - 1]
-                    .next_run
-                    .unwrap()
-                    .minute(),
-            );
+            minutes.insert(scheduler.most_recent_job().next_run.unwrap().minute());
         }
 
-        // Make sure each job got an appropriate run time
+        // Make sure each job got a run time within the specified bounds
         assert!(minutes.len() > 1);
         assert!(minutes.iter().min().unwrap() >= &5);
         assert!(minutes.iter().max().unwrap() <= &30);
+
+        Ok(())
+    }
+
+    // TODO - job repr
+    // #[test]
+    // fn test_time_range_debug() -> Result<()> {
+    //     let (mut scheduler, every, _) = setup();
+    //
+    //     every(5).to(30)?.minutes()?.run(&mut &mut scheduler, job)?;
+    //
+    //     assert_eq!(
+    //         scheduler.most_recent_job().to_string(),
+    //         "Every 5 to 30 minutes do job()"
+    //     );
+    //
+    //     Ok(())
+    // }
+
+    #[test]
+    fn test_at_time() -> Result<()> {
+        let (mut scheduler, _, every_single) = setup();
+
+        every_single()
+            .day()?
+            .at("10:30:50")?
+            .run(&mut scheduler, job)?;
+        assert_eq!(scheduler.most_recent_job().next_run.unwrap().hour(), 10);
+        assert_eq!(scheduler.most_recent_job().next_run.unwrap().minute(), 30);
+        assert_eq!(scheduler.most_recent_job().next_run.unwrap().second(), 50);
 
         Ok(())
     }
