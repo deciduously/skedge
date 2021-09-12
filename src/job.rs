@@ -71,9 +71,12 @@ pub struct Job {
     /// Specific day of the week to start on
     start_day: Option<Weekday>,
     /// Optional time of final run
-    cancel_after: Option<Timestamp>,
+    pub(crate) cancel_after: Option<Timestamp>,
     /// Interface to current time
     clock: Option<Box<dyn Timekeeper>>,
+    // Track number of times run, for testing
+    #[cfg(test)]
+    pub(crate) call_count: u64,
 }
 
 impl Job {
@@ -91,6 +94,8 @@ impl Job {
             start_day: None,
             cancel_after: None,
             clock: Some(Box::new(RealTime::default())),
+            #[cfg(test)]
+            call_count: 0,
         }
     }
 
@@ -110,6 +115,8 @@ impl Job {
             start_day: None,
             cancel_after: None,
             clock: Some(Box::new(clock)),
+            #[cfg(test)]
+            call_count: 0,
         }
     }
 
@@ -600,7 +607,7 @@ impl Job {
     }
 
     /// Check whether this job should be run now
-    pub fn should_run(&self) -> bool {
+    pub(crate) fn should_run(&self) -> bool {
         self.next_run.is_some() && self.now() >= self.next_run.unwrap()
     }
 
@@ -623,6 +630,10 @@ impl Job {
         }
         // FIXME - here's the return value capture
         let _ = self.job.as_ref().unwrap().call();
+        #[cfg(test)]
+        {
+            self.call_count += 1;
+        }
         self.last_run = Some(self.now());
         self.schedule_next_run()?;
 
