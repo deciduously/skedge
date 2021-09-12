@@ -19,8 +19,8 @@ $(SO_PATH):
 	$(RUSTBUILD) $(RUSTFLAGS)
 
 clean:
-	@rm -r $(SO_PATH)
-	@rm -r $(EXE)
+	@rm -f $(SO_PATH)
+	@rm -f $(EXE)
 
 run: clean $(EXE)
 	LD_LIBRARY_PATH=$(LD_PATH) ./$(EXE)

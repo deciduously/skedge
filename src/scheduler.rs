@@ -1,10 +1,10 @@
 //! The scheduler is responsible for managing all scheduled jobs.
 
-use crate::{Job, Result, Tag, Timekeeper, Timestamp};
+use crate::{time::RealTime, Job, Result, Tag, Timekeeper, Timestamp};
 use log::*;
 
 /// A Scheduler creates jobs, tracks recorded jobs, and executes jobs.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Scheduler {
     /// The currently scheduled lob list
     jobs: Vec<Job>,
@@ -15,7 +15,7 @@ pub struct Scheduler {
 impl Scheduler {
     /// Instantiate a Scheduler
     pub fn new() -> Self {
-        pretty_env_logger::init();
+        let _ = pretty_env_logger::try_init();
         Self::default()
     }
 
@@ -45,11 +45,21 @@ impl Scheduler {
     }
 
     /// Add a new job to the list
-    pub fn add_job(&mut self, job: Job) {
+    pub(crate) fn add_job(&mut self, job: Job) {
         self.jobs.push(job);
     }
 
     /// Run all jobs that are scheduled to run.  Does NOT run missed jobs!
+    /// ```rust
+    /// # use skedge::{every, Scheduler};
+    /// # fn job() {}
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut scheduler = Scheduler::new();
+    /// every(5).seconds()?.run(&mut scheduler, job)?;
+    /// scheduler.run_pending()?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn run_pending(&mut self) -> Result<()> {
         //let mut jobs_to_run: Vec<&Job> = self.jobs.iter().filter(|el| el.should_run()).collect();
         self.jobs.sort();
@@ -89,6 +99,18 @@ impl Scheduler {
     }
 
     /// Get all jobs, optionally with a given tag.
+    /// ```rust
+    /// # use skedge::{every, Scheduler};
+    /// # fn job() {}
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut scheduler = Scheduler::new();
+    /// every(5).seconds()?.run(&mut scheduler, job)?;
+    /// every(10).minutes()?.run(&mut scheduler, job)?;
+    /// let jobs = scheduler.get_jobs(None);
+    /// assert_eq!(jobs.len(), 2);
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn get_jobs(&self, tag: Option<Tag>) -> Vec<&Job> {
         if let Some(t) = tag {
             self.jobs
@@ -101,6 +123,19 @@ impl Scheduler {
     }
 
     /// Clear all jobs, optionally only with given tag.
+    /// ```rust
+    /// # use skedge::{every, Scheduler};
+    /// # fn job() {}
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut scheduler = Scheduler::new();
+    /// every(5).seconds()?.run(&mut scheduler, job)?;
+    /// every(10).minutes()?.run(&mut scheduler, job)?;
+    /// assert_eq!(scheduler.get_jobs(None).len(), 2);
+    /// scheduler.clear(None);
+    /// assert_eq!(scheduler.get_jobs(None).len(), 0);
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn clear(&mut self, tag: Option<Tag>) {
         if let Some(t) = tag {
             debug!("Deleting all jobs tagged {}", t);
@@ -112,6 +147,17 @@ impl Scheduler {
     }
 
     /// Grab the next upcoming timestamp
+    /// ```rust
+    /// # use skedge::{every, Scheduler};
+    /// # fn job() {}
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut scheduler = Scheduler::new();
+    /// every(10).minutes()?.run(&mut scheduler, job)?;
+    /// let expected = chrono::Local::now() + chrono::Duration::minutes(10);
+    /// assert!(scheduler.next_run().unwrap() - expected < chrono::Duration::microseconds(1));
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn next_run(&self) -> Option<Timestamp> {
         if self.jobs.is_empty() {
             None
@@ -121,21 +167,52 @@ impl Scheduler {
         }
     }
 
-    /// Number of seconds until next run.  None if no jobs scheduled
+    /// Number of whole seconds until next run.  None if no jobs scheduled
+    /// ```rust
+    /// # use skedge::{every, Scheduler};
+    /// # fn job() {}
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut scheduler = Scheduler::new();
+    /// every(10).minutes()?.run(&mut scheduler, job)?;
+    /// // Subtract one - we're already partway through the first second, so there's 599 left.
+    /// assert_eq!(scheduler.idle_seconds().unwrap(), 10 * 60 - 1);
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn idle_seconds(&self) -> Option<i64> {
         Some((self.next_run()? - self.now()).num_seconds())
+    }
+
+    /// Get the most recently added job, for testing
+    #[cfg(test)]
+    fn most_recent_job(&self) -> Option<&Job> {
+        if self.jobs.is_empty() {
+            return None;
+        }
+        Some(&self.jobs[self.jobs.len() - 1])
+    }
+}
+
+impl Default for Scheduler {
+    fn default() -> Self {
+        Self {
+            jobs: Vec::new(),
+            clock: Some(Box::new(RealTime)),
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use super::*;
     use crate::{
         error::Result,
         time::mock::{MockTime, START},
         Interval,
     };
-    use chrono::Duration;
+    use chrono::{prelude::*, Duration, Timelike};
     use pretty_assertions::assert_eq;
 
     /// Overshadow scheduler, every() and every_single() to use our clock instead
@@ -190,6 +267,189 @@ mod tests {
             scheduler.next_run(),
             Some(*START + Duration::seconds(17 * 4))
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_time_range() -> Result<()> {
+        let (mut scheduler, every, _) = setup();
+
+        // Set up 100 jobs, store the minute of the next run
+        let num_jobs = 100;
+        let mut minutes = HashSet::with_capacity(num_jobs);
+        for _ in 0..num_jobs {
+            every(5).to(30)?.minutes()?.run(&mut scheduler, job)?;
+            minutes.insert(
+                scheduler
+                    .most_recent_job()
+                    .unwrap()
+                    .next_run
+                    .unwrap()
+                    .minute(),
+            );
+        }
+
+        // Make sure each job got a run time within the specified bounds
+        assert!(minutes.len() > 1);
+        assert!(minutes.iter().min().unwrap() >= &5);
+        assert!(minutes.iter().max().unwrap() <= &30);
+
+        Ok(())
+    }
+
+    // TODO - job repr
+    // #[test]
+    // fn test_time_range_debug() -> Result<()> {
+    //     let (mut scheduler, every, _) = setup();
+    //
+    //     every(5).to(30)?.minutes()?.run(&mut &mut scheduler, job)?;
+    //
+    //     assert_eq!(
+    //         scheduler.most_recent_job().to_string(),
+    //         "Every 5 to 30 minutes do job()"
+    //     );
+    //
+    //     Ok(())
+    // }
+
+    #[test]
+    fn test_at_time() -> Result<()> {
+        let (mut scheduler, _, every_single) = setup();
+
+        every_single()
+            .day()?
+            .at("10:30:50")?
+            .run(&mut scheduler, job)?;
+        assert_eq!(
+            scheduler
+                .most_recent_job()
+                .unwrap()
+                .next_run
+                .unwrap()
+                .hour(),
+            10
+        );
+        assert_eq!(
+            scheduler
+                .most_recent_job()
+                .unwrap()
+                .next_run
+                .unwrap()
+                .minute(),
+            30
+        );
+        assert_eq!(
+            scheduler
+                .most_recent_job()
+                .unwrap()
+                .next_run
+                .unwrap()
+                .second(),
+            50
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_clear_scheduler() -> Result<()> {
+        let (mut scheduler, _, every_single) = setup();
+
+        every_single().day()?.run(&mut scheduler, job)?;
+        every_single().minute()?.run(&mut scheduler, job)?;
+        assert_eq!(scheduler.jobs.len(), 2);
+        scheduler.clear(None);
+        assert_eq!(scheduler.jobs.len(), 0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_until_time() -> Result<()> {
+        let (mut scheduler, every, every_single) = setup();
+
+        // Make sure it stores a deadline
+
+        let deadline = Local.ymd(3000, 1, 1).and_hms(12, 0, 0);
+        every_single()
+            .day()?
+            .until(deadline)?
+            .run(&mut scheduler, job)?;
+        assert_eq!(
+            scheduler.most_recent_job().unwrap().cancel_after.unwrap(),
+            deadline
+        );
+
+        // Make sure it cancels a job after next_run passes the deadline
+
+        scheduler.clear(None);
+        let deadline = Local.ymd(2021, 1, 1).and_hms(12, 0, 10);
+        every(5)
+            .seconds()?
+            .until(deadline)?
+            .run(&mut scheduler, job)?;
+        assert_eq!(scheduler.most_recent_job().unwrap().call_count, 0);
+        scheduler.bump_times(Duration::seconds(5))?;
+        scheduler.run_pending()?;
+        assert_eq!(scheduler.most_recent_job().unwrap().call_count, 1);
+        assert_eq!(scheduler.jobs.len(), 1);
+        scheduler.bump_times(Duration::seconds(5))?;
+        assert_eq!(scheduler.jobs.len(), 1);
+        assert_eq!(scheduler.most_recent_job().unwrap().call_count, 2);
+        scheduler.run_pending()?;
+        scheduler.bump_times(Duration::seconds(5))?;
+        scheduler.run_pending()?;
+        // TODO - how to test to ensure the job did not run?
+        assert_eq!(scheduler.jobs.len(), 0);
+
+        // Make sure it cancels a job if current execution passes the deadline
+
+        scheduler.clear(None);
+        let deadline = Local.ymd(2021, 1, 1).and_hms(12, 0, 10);
+        every(5)
+            .seconds()?
+            .until(deadline)?
+            .run(&mut scheduler, job)?;
+        scheduler.bump_times(Duration::seconds(40))?;
+        scheduler.run_pending()?;
+        // TODO - how to test to ensure the job did not run?
+        assert_eq!(scheduler.jobs.len(), 0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_weekday_at_time() -> Result<()> {
+        let (mut scheduler, _, every_single) = setup();
+
+        every_single()
+            .wednesday()?
+            .at("22:38:10")?
+            .run(&mut scheduler, job)?;
+        let j = scheduler.most_recent_job().unwrap();
+
+        assert_eq!(j.next_run.unwrap().year(), 2021);
+        assert_eq!(j.next_run.unwrap().month(), 1);
+        assert_eq!(j.next_run.unwrap().day(), 6);
+        assert_eq!(j.next_run.unwrap().hour(), 22);
+        assert_eq!(j.next_run.unwrap().minute(), 38);
+        assert_eq!(j.next_run.unwrap().second(), 10);
+
+        scheduler.clear(None);
+
+        every_single()
+            .wednesday()?
+            .at("22:39")?
+            .run(&mut scheduler, job)?;
+        let j = scheduler.most_recent_job().unwrap();
+
+        assert_eq!(j.next_run.unwrap().year(), 2021);
+        assert_eq!(j.next_run.unwrap().month(), 1);
+        assert_eq!(j.next_run.unwrap().day(), 6);
+        assert_eq!(j.next_run.unwrap().hour(), 22);
+        assert_eq!(j.next_run.unwrap().minute(), 39);
+        assert_eq!(j.next_run.unwrap().second(), 0);
 
         Ok(())
     }
