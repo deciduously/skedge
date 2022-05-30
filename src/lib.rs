@@ -46,18 +46,20 @@
 //! #   Ok(())
 //! # }
 //! ```
-//! Note that you must use the appropriate run_x_args() method for job functions taking multiple arguments.
+//! Note that you must use the appropriate `run_x_args()` method for job functions taking multiple arguments.
 //! In your main loop, you can use `Scheduler::run_pending()` to fire all scheduled jobs at the proper time:
 //! ```no_run
 //! # use skedge::Scheduler;
 //! # let mut schedule = Scheduler::new();
 //! loop {
 //!     if let Err(e) = schedule.run_pending() {
-//!         eprintln!("Error: {}", e);
+//!         eprintln!("Error: {e}");
 //!     }
 //!     std::thread::sleep(std::time::Duration::from_secs(1));
 //! }
 //! ```
+
+#![warn(clippy::pedantic)]
 
 mod callable;
 mod error;
@@ -65,11 +67,13 @@ mod job;
 mod scheduler;
 mod time;
 
-use callable::*;
+use callable::{
+	Callable, FiveToUnit, FourToUnit, OneToUnit, SixToUnit, ThreeToUnit, TwoToUnit, UnitToUnit,
+};
 pub use error::*;
 pub use job::{every, every_single, Interval, Job, Tag};
 pub use scheduler::Scheduler;
-use time::{RealTime, TimeUnit, Timekeeper, Timestamp};
+use time::{Real, Timekeeper, Timestamp, Unit};
 
 #[cfg(feature = "ffi")]
 mod ffi;

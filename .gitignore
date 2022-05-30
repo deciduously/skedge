@@ -1,3 +1,4 @@
 /target
 Cargo.lock
 skedge_demo
+/.vscode/*.log
