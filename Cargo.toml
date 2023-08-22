@@ -10,7 +10,7 @@ license = "BSD-3-Clause"
 name = "skedge"
 readme = "README.md"
 repository = "https://github.com/deciduously/skedge"
-version = "0.1.3"
+version = "0.1.4"
 
 [lib]
 crate-type = ["rlib", "cdylib"]
