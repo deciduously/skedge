@@ -87,7 +87,7 @@ pub mod mock {
 
 	lazy_static! {
 		/// Default starting time
-		pub static ref START: Timestamp = Local.ymd(2021, 1, 1).and_hms(12, 0, 0);
+		pub static ref START: Timestamp = Local.with_ymd_and_hms(2021, 1, 1, 12, 0 ,0).single().expect("valid date");
 	}
 
 	/// Mock the datetime for predictable results.
@@ -114,7 +114,7 @@ pub mod mock {
 		}
 
 		fn add_duration(&mut self, duration: chrono::Duration) {
-			self.stamp = self.stamp + duration;
+			self.stamp += duration;
 		}
 	}
 }

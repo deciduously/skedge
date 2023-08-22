@@ -24,6 +24,8 @@ pub enum Error {
 	InvalidHourlyAtStr,
 	#[error("Invalid time format for minutely job (valid format is :SS)")]
 	InvalidMinuteAtStr,
+	#[error("Invalid hms values for NaiveTime ({0},{1},{2})")]
+	InvalidNaiveTime(u32, u32, u32),
 	#[error("Invalid string format for until()")]
 	InvalidUntilStr,
 	#[error("Cannot schedule a job to run until a time in the past")]
@@ -48,25 +50,32 @@ pub enum Error {
 	UnspecifiedStartDay,
 }
 
-/// Construct a new Unit error
+/// Construct a new Unit error.
 pub(crate) fn unit_error(intended: Unit, existing: Unit) -> Error {
 	Error::Unit(intended, existing)
 }
 
+/// Construct a new invalid hour error.
 pub(crate) fn invalid_hour_error(hour: u32) -> Error {
 	Error::InvalidHour(hour)
 }
 
-/// Construct a new Interval error
+/// Concstruct a new invalid HMS error.
+pub(crate) fn invalid_hms_error(hour: u32, minute: u32, second: u32) -> Error {
+	Error::InvalidNaiveTime(hour, minute, second)
+}
+
+/// Construct a new Interval error.
 pub(crate) fn interval_error(interval: Unit) -> Error {
 	Error::Interval(interval)
 }
 
-/// Construct a new Weekday error
+/// Construct a new Weekday error.
 pub(crate) fn weekday_error(weekday: Weekday) -> Error {
 	Error::Weekday(weekday)
 }
 
+/// Construct a new Weekday collision error.
 pub(crate) fn weekday_collision_error(intended: Weekday, existing: Weekday) -> Error {
 	Error::WeekdayCollision(intended, existing)
 }

@@ -380,7 +380,10 @@ mod tests {
 
 		// Make sure it stores a deadline
 
-		let deadline = Local.ymd(3000, 1, 1).and_hms(12, 0, 0);
+		let deadline = Local
+			.with_ymd_and_hms(3000, 1, 1, 12, 0, 0)
+			.single()
+			.expect("valid time");
 		every_single()
 			.day()?
 			.until(deadline)?
@@ -393,7 +396,10 @@ mod tests {
 		// Make sure it cancels a job after next_run passes the deadline
 
 		scheduler.clear(None);
-		let deadline = Local.ymd(2021, 1, 1).and_hms(12, 0, 10);
+		let deadline = Local
+			.with_ymd_and_hms(2021, 1, 1, 12, 0, 10)
+			.single()
+			.expect("valid time");
 		every(5)
 			.seconds()?
 			.until(deadline)?
@@ -415,7 +421,7 @@ mod tests {
 		// Make sure it cancels a job if current execution passes the deadline
 
 		scheduler.clear(None);
-		let deadline = Local.ymd(2021, 1, 1).and_hms(12, 0, 10);
+		let deadline = *START;
 		every(5)
 			.seconds()?
 			.until(deadline)?

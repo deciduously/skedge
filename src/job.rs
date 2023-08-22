@@ -14,9 +14,9 @@ use tracing::debug;
 #[cfg(feature = "ffi")]
 use crate::callable::ffi::ExternUnitToUnit;
 use crate::{
-	interval_error, invalid_hour_error, unit_error, weekday_collision_error, weekday_error,
-	Callable, Error, FiveToUnit, FourToUnit, OneToUnit, Real, Result, Scheduler, SixToUnit,
-	ThreeToUnit, Timekeeper, Timestamp, TwoToUnit, Unit, UnitToUnit,
+	interval_error, invalid_hms_error, invalid_hour_error, unit_error, weekday_collision_error,
+	weekday_error, Callable, Error, FiveToUnit, FourToUnit, OneToUnit, Real, Result, Scheduler,
+	SixToUnit, ThreeToUnit, Timekeeper, Timestamp, TwoToUnit, Unit, UnitToUnit,
 };
 
 /// A Tag is used to categorize a job.
@@ -100,7 +100,7 @@ impl Job {
 			period: None,
 			start_day: None,
 			cancel_after: None,
-			clock: Some(Box::new(Real::default())),
+			clock: Some(Box::<Real>::default()),
 			#[cfg(test)]
 			call_count: 0,
 		}
@@ -244,7 +244,10 @@ impl Job {
 		}
 
 		// Store timestamp and return
-		self.at_time = Some(NaiveTime::from_hms(hour, minute, second));
+		self.at_time = Some(
+			NaiveTime::from_hms_opt(hour, minute, second)
+				.ok_or(invalid_hms_error(hour, minute, second))?,
+		);
 		Ok(self)
 	}
 
@@ -932,7 +935,7 @@ impl Job {
 				- i64::from(
 					self.next_run
 						.ok_or(Error::NextRunUnreachable)?
-						.date()
+						.date_naive()
 						.weekday()
 						.num_days_from_monday(),
 				);
@@ -972,9 +975,13 @@ impl Job {
 			} else {
 				next_run.minute()
 			};
-			let naive_time = NaiveTime::from_hms(hour, minute, second);
-			let date = next_run.date();
-			self.next_run = Some(date.and_time(naive_time).ok_or(Error::InvalidUnit)?);
+			let naive_time = NaiveTime::from_hms_opt(hour, minute, second)
+				.ok_or(invalid_hms_error(hour, minute, second))?;
+			let naive_date = next_run.date_naive();
+			let local_datetime = Local
+				.from_local_datetime(&naive_date.and_time(naive_time))
+				.unwrap();
+			self.next_run = Some(local_datetime);
 
 			// Make sure job gets run TODAY or THIS HOUR
 			// Accounting for jobs take long enough that they finish in the next period
