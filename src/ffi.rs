@@ -20,7 +20,7 @@ pub unsafe extern "C" fn ffi_string_free(s: *mut c_char) {
 			return;
 		}
 		// Otherwise, trigger the Rust destructor when it goes out of scope
-		CString::from_raw(s)
+		let _ = CString::from_raw(s);
 	};
 }
 
@@ -43,7 +43,7 @@ pub unsafe extern "C" fn scheduler_free(ptr: *mut Scheduler) {
 		return;
 	}
 	// Capture it - moves into this function, which then drops at the end
-	Box::from_raw(ptr);
+	let _ = Box::from_raw(ptr);
 }
 
 /// Start configuring a job

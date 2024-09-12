@@ -1,9 +1,8 @@
-#include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
 #include <inttypes.h>
-#include <unistd.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <time.h>
+#include <unistd.h>
 
 // Declare all of these - currently, only void to void is supported
 typedef struct scheduler scheduler_t;
@@ -25,20 +24,18 @@ extern job_t *seconds(job_t *);
 extern job_t *minute(job_t *);
 
 // Helper function to grab the current time
-char *now()
-{
-    time_t rawtime;
-    struct tm *timeinfo;
-    time(&rawtime);
-    timeinfo = localtime(&rawtime);
-    return asctime(timeinfo);
+char *now(void) {
+  time_t rawtime;
+  struct tm *timeinfo;
+  time(&rawtime);
+  timeinfo = localtime(&rawtime);
+  return asctime(timeinfo);
 }
 
 // Define a job
-void job(void)
-{
-    printf("Hello!  It is now %s\n", now());
-    fflush(stdout);
+void job(void) {
+  printf("Hello!  It is now %s\n", now());
+  fflush(stdout);
 }
 
 // // NOTE: not sure how to do this - can't use generic interface arguments.
@@ -49,24 +46,21 @@ void job(void)
 
 // You can't return anything, must be void return type
 
-int main(void)
-{
-    printf("Starting at %s\n", now());
-    
-    // Instantiate
-    scheduler_t *scheduler = scheduler_new();
+int main(void) {
+  // Instantiate
+  scheduler_t *scheduler = scheduler_new();
+  printf("Starting at %s\n", now());
 
-    // Schedule some jobs - it's a little inside-out
-    run(seconds(every(8)), scheduler, job);
-    run(minute(every_single()), scheduler, job);
+  // Schedule some jobs - it's a little inside-out
+  run(seconds(every(8)), scheduler, job);
+  run(minute(every_single()), scheduler, job);
 
-    // Run some jobs
-    for (int i = 0; i < 100; i++)
-    {
-        run_pending(scheduler);
-        sleep(1);
-    }
+  // Run some jobs
+  for (int i = 0; i < 100; i++) {
+    run_pending(scheduler);
+    sleep(1);
+  }
 
-    // Free
-    scheduler_free(scheduler);
+  // Free
+  scheduler_free(scheduler);
 }

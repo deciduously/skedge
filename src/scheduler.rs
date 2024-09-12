@@ -38,12 +38,6 @@ impl Scheduler {
 		Ok(())
 	}
 
-	/// Helper function to get the current time
-	fn now(&self) -> Timestamp {
-		// unwrap is safe, there will always be one
-		self.clock.as_ref().unwrap().now()
-	}
-
 	/// Add a new job to the list
 	pub(crate) fn add_job(&mut self, job: Job) {
 		self.jobs.push(job);
@@ -207,6 +201,17 @@ impl Default for Scheduler {
 			jobs: Vec::new(),
 			clock: Some(Box::new(Real)),
 		}
+	}
+}
+
+impl Timekeeper for Scheduler {
+	fn now(&self) -> Timestamp {
+		self.clock.as_ref().unwrap().now()
+	}
+
+	#[cfg(test)]
+	fn add_duration(&mut self, duration: chrono::Duration) {
+		self.clock.as_mut().unwrap().add_duration(duration)
 	}
 }
 
