@@ -1,13 +1,13 @@
 //! A Job is a piece of work that can be configured and added to the scheduler
 
 use chrono::{prelude::*, Datelike, Duration, Timelike};
-use lazy_static::lazy_static;
 use rand::prelude::*;
 use regex::Regex;
 use std::{
 	cmp::{Ord, Ordering},
 	collections::HashSet,
 	fmt,
+	sync::LazyLock,
 };
 use tracing::debug;
 
@@ -25,12 +25,11 @@ pub type Tag = String;
 /// Each interval value is an unsigned 32-bit integer
 pub type Interval = u32;
 
-lazy_static! {
-	// Regexes for validating `.at()` strings are only computed once
-	static ref DAILY_RE: Regex = Regex::new(r"^([0-2]\d:)?[0-5]\d:[0-5]\d$").unwrap();
-	static ref HOURLY_RE: Regex = Regex::new(r"^([0-5]\d)?:[0-5]\d$").unwrap();
-	static ref MINUTE_RE: Regex = Regex::new(r"^:[0-5]\d$").unwrap();
-}
+// Regexes for validating `.at()` strings are only computed once
+static DAILY_RE: LazyLock<Regex> =
+	LazyLock::new(|| Regex::new(r"^([0-2]\d:)?[0-5]\d:[0-5]\d$").unwrap());
+static HOURLY_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^([0-5]\d)?:[0-5]\d$").unwrap());
+static MINUTE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^:[0-5]\d$").unwrap());
 
 /// Convenience function wrapping the Job constructor.
 ///

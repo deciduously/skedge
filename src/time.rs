@@ -83,12 +83,13 @@ impl fmt::Display for Unit {
 #[cfg(test)]
 pub mod mock {
 	use super::{Local, TimeZone, Timekeeper, Timestamp};
-	use lazy_static::lazy_static;
-
-	lazy_static! {
-		/// Default starting time
-		pub static ref START: Timestamp = Local.with_ymd_and_hms(2021, 1, 1, 12, 0 ,0).single().expect("valid date");
-	}
+	/// Default starting time
+	pub static START: std::sync::LazyLock<Timestamp> = std::sync::LazyLock::new(|| {
+		Local
+			.with_ymd_and_hms(2021, 1, 1, 12, 0, 0)
+			.single()
+			.expect("valid date")
+	});
 
 	/// Mock the datetime for predictable results.
 	#[derive(Debug, Clone, Copy)]

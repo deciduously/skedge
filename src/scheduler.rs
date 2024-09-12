@@ -16,7 +16,6 @@ impl Scheduler {
 	/// Instantiate a Scheduler
 	#[must_use]
 	pub fn new() -> Self {
-		let _ = pretty_env_logger::try_init();
 		Self::default()
 	}
 
