@@ -17,7 +17,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 		.to(8)?
 		.seconds()?
 		.until(Local::now() + chrono::Duration::seconds(30))?
-		.run_one_arg(&mut schedule, greet, "Good-Looking")?;
+		.run_one_arg(&mut schedule, greet, "Cool Person")?;
 
 	let now = Local::now();
 	println!("Starting at {now}");

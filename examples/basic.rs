@@ -45,7 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 		.run_six_args(
 			&mut schedule,
 			flirt,
-			"Good-Looking",
+			"Cool Person",
 			"Friday",
 			7,
 			40,
