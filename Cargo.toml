@@ -6,11 +6,11 @@ edition = "2021"
 homepage = "https://crates.io/crates/skedge"
 include = ["**/*.rs", "Cargo.toml"]
 keywords = ["utility", "scheduling"]
-license = "BSD-3-Clause"
+license = "MIT"
 name = "skedge"
 readme = "README.md"
 repository = "https://github.com/deciduously/skedge"
-version = "0.2.1"
+version = "0.3.0"
 rust-version = "1.80"
 
 [lib]
