@@ -1,12 +1,12 @@
 // This is the exact code from the README.md example
 
-use chrono::Local;
+use jiff::{ToSpan, Zoned};
 use skedge::{every, Scheduler};
 use std::thread::sleep;
 use std::time::Duration;
 
 fn greet(name: &str) {
-	let now = Local::now().to_rfc2822();
+	let now = Zoned::now();
 	println!("Hello {name}, it's {now}!");
 }
 
@@ -16,10 +16,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 	every(2)
 		.to(8)?
 		.seconds()?
-		.until(Local::now() + chrono::Duration::seconds(30))?
+		.until(Zoned::now().checked_add(30.seconds()).unwrap())?
 		.run_one_arg(&mut schedule, greet, "Cool Person")?;
 
-	let now = Local::now();
+	let now = Zoned::now();
 	println!("Starting at {now}");
 	loop {
 		if let Err(e) = schedule.run_pending() {

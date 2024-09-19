@@ -1,12 +1,12 @@
 // Some more varied usage examples.
 
-use chrono::Local;
+use jiff::{ToSpan, Zoned};
 use skedge::{every, every_single, Scheduler};
 use std::thread::sleep;
 use std::time::Duration;
 
 fn job() {
-	let now = Local::now().to_rfc2822();
+	let now = Zoned::now();
 	println!("Hello, it's {now}!");
 }
 
@@ -41,7 +41,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 	every(2)
 		.to(8)?
 		.seconds()?
-		.until(Local::now() + chrono::Duration::days(5))?
+		.until(Zoned::now().checked_add(5.seconds()).unwrap())?
 		.run_six_args(
 			&mut schedule,
 			flirt,
@@ -53,7 +53,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 			"foraged chanterelle croque monsieur",
 		)?;
 
-	let now = Local::now().to_rfc3339();
+	let now = Zoned::now();
 	println!("Starting at {now}");
 	loop {
 		if let Err(e) = schedule.run_pending() {

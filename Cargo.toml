@@ -21,7 +21,7 @@ default = []
 ffi = []
 
 [dependencies]
-chrono = "0.4"
+jiff = "0.1"
 libc = "0.2"
 rand = "0.8"
 regex = "1.5"

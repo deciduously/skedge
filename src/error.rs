@@ -1,7 +1,7 @@
 //! This module defines the error type and Result alias.
 
 use crate::Unit;
-use chrono::Weekday;
+use jiff::civil::Weekday;
 use thiserror::Error;
 
 #[derive(Debug, PartialEq, Error)]
@@ -17,15 +17,15 @@ pub enum Error {
 	#[error("Invalid unit (valid units are `days`, `hours`, and `minutes`)")]
 	InvalidUnit,
 	#[error("Invalid hour ({0} is not between 0 and 23)")]
-	InvalidHour(u32),
+	InvalidHour(i8),
 	#[error("Invalid time format for daily job (valid format is HH:MM(:SS)?)")]
 	InvalidDailyAtStr,
 	#[error("Invalid time format for hourly job (valid format is (MM)?:SS)")]
 	InvalidHourlyAtStr,
 	#[error("Invalid time format for minutely job (valid format is :SS)")]
 	InvalidMinuteAtStr,
-	#[error("Invalid hms values for NaiveTime ({0},{1},{2})")]
-	InvalidNaiveTime(u32, u32, u32),
+	#[error("Invalid hms values for civil::Time ({0},{1},{2})")]
+	InvalidCivilTime(i8, i8, i8),
 	#[error("Invalid string format for until()")]
 	InvalidUntilStr,
 	#[error("Cannot schedule a job to run until a time in the past")]
@@ -42,9 +42,9 @@ pub enum Error {
 	StartDayError,
 	#[error("{0}")]
 	ParseInt(#[from] std::num::ParseIntError),
-	#[error("Scheduling jobs on {0} is only allowed for weekly jobs.  Using specific days on a job scheduled to run every 2 or more weeks is not supported")]
+	#[error("Scheduling jobs on {0:?} is only allowed for weekly jobs.  Using specific days on a job scheduled to run every 2 or more weeks is not supported")]
 	Weekday(Weekday),
-	#[error("Cannot schedule {0} job, already scheduled for {1}")]
+	#[error("Cannot schedule {0:?} job, already scheduled for {1:?}")]
 	WeekdayCollision(Weekday, Weekday),
 	#[error("Invalid unit without specifying start day")]
 	UnspecifiedStartDay,
@@ -56,13 +56,8 @@ pub(crate) fn unit_error(intended: Unit, existing: Unit) -> Error {
 }
 
 /// Construct a new invalid hour error.
-pub(crate) fn invalid_hour_error(hour: u32) -> Error {
+pub(crate) fn invalid_hour_error(hour: i8) -> Error {
 	Error::InvalidHour(hour)
-}
-
-/// Concstruct a new invalid HMS error.
-pub(crate) fn invalid_hms_error(hour: u32, minute: u32, second: u32) -> Error {
-	Error::InvalidNaiveTime(hour, minute, second)
 }
 
 /// Construct a new Interval error.

@@ -1,6 +1,6 @@
 //! A Job is a piece of work that can be configured and added to the scheduler
 
-use chrono::{prelude::*, Datelike, Duration, Timelike};
+use jiff::{civil, Span, Zoned};
 use rand::prelude::*;
 use regex::Regex;
 use std::{
@@ -14,9 +14,9 @@ use tracing::debug;
 #[cfg(feature = "ffi")]
 use crate::callable::ffi::ExternUnitToUnit;
 use crate::{
-	interval_error, invalid_hms_error, invalid_hour_error, unit_error, weekday_collision_error,
-	weekday_error, Callable, Error, FiveToUnit, FourToUnit, OneToUnit, Real, Result, Scheduler,
-	SixToUnit, ThreeToUnit, Timekeeper, Timestamp, TwoToUnit, Unit, UnitToUnit,
+	interval_error, invalid_hour_error, unit_error, weekday_collision_error, weekday_error,
+	Callable, Error, FiveToUnit, FourToUnit, OneToUnit, Result, Scheduler, SixToUnit, ThreeToUnit,
+	Timekeeper, TwoToUnit, Unit, UnitToUnit,
 };
 
 /// A Tag is used to categorize a job.
@@ -66,19 +66,17 @@ pub struct Job {
 	/// Unit of time described by intervals
 	unit: Option<Unit>,
 	/// Optional set time at which this job runs
-	at_time: Option<NaiveTime>,
+	at_time: Option<civil::Time>,
 	/// Timestamp of last run
-	last_run: Option<Timestamp>,
+	last_run: Option<Zoned>,
 	/// Timestamp of next run
-	pub(crate) next_run: Option<Timestamp>,
+	pub(crate) next_run: Option<Zoned>,
 	/// Time delta between runs
-	period: Option<Duration>,
+	period: Option<Span>,
 	/// Specific day of the week to start on
-	start_day: Option<Weekday>,
+	start_day: Option<civil::Weekday>,
 	/// Optional time of final run
-	pub(crate) cancel_after: Option<Timestamp>,
-	/// Interface to current time
-	clock: Option<Box<dyn Timekeeper>>,
+	pub(crate) cancel_after: Option<Zoned>,
 	// Track number of times run, for testing
 	#[cfg(test)]
 	pub(crate) call_count: u64,
@@ -99,48 +97,9 @@ impl Job {
 			period: None,
 			start_day: None,
 			cancel_after: None,
-			clock: Some(Box::<Real>::default()),
 			#[cfg(test)]
 			call_count: 0,
 		}
-	}
-
-	#[cfg(test)]
-	/// Build a job with a fake timer
-	#[must_use]
-	pub fn with_mock_time(interval: Interval, clock: crate::time::mock::Mock) -> Self {
-		Self {
-			interval,
-			latest: None,
-			job: None,
-			tags: HashSet::new(),
-			unit: None,
-			at_time: None,
-			last_run: None,
-			next_run: None,
-			period: None,
-			start_day: None,
-			cancel_after: None,
-			clock: Some(Box::new(clock)),
-			#[cfg(test)]
-			call_count: 0,
-		}
-	}
-
-	#[cfg(test)]
-	/// Add a duration to the clock
-	///
-	/// # Panics
-	///
-	/// Panics if job has no associated clock.
-	pub fn add_duration(&mut self, duration: Duration) {
-		self.clock.as_mut().unwrap().add_duration(duration);
-	}
-
-	/// Helper function to get the current time
-	fn now(&self) -> Timestamp {
-		// unwrap is safe, there will always be one
-		self.clock.as_ref().unwrap().now()
 	}
 
 	/// Tag the job with one or more unique identifiers
@@ -186,6 +145,7 @@ impl Job {
 	///
 	/// Returns an error if passed an invalid or nonsensical date string.
 	pub fn at(mut self, time_str: &str) -> Result<Self> {
+		// FIXME - can this whole fun just use jiff?
 		use Unit::{Day, Hour, Minute, Week, Year};
 
 		// Validate time unit
@@ -243,10 +203,7 @@ impl Job {
 		}
 
 		// Store timestamp and return
-		self.at_time = Some(
-			NaiveTime::from_hms_opt(hour, minute, second)
-				.ok_or(invalid_hms_error(hour, minute, second))?,
-		);
+		self.at_time = Some(civil::time(hour, minute, second, 0));
 		Ok(self)
 	}
 
@@ -297,9 +254,11 @@ impl Job {
 	/// # Errors
 	///
 	/// Returns an error if the `until_time` is before the current time.
-	pub fn until(mut self, until_time: Timestamp) -> Result<Self> {
-		if until_time < self.now() {
-			return Err(Error::InvalidUntilTime);
+	pub fn until(mut self, until_time: Zoned) -> Result<Self> {
+		if let Some(ref last_run) = self.last_run {
+			if until_time < *last_run {
+				return Err(Error::InvalidUntilTime);
+			}
 		}
 		self.cancel_after = Some(until_time);
 		Ok(self)
@@ -323,9 +282,10 @@ impl Job {
 	/// # Errors
 	///
 	/// Returns an error if unable to schedule the run.
+	// FIXME this also goes on scheduler?
 	pub fn run(mut self, scheduler: &mut Scheduler, job: fn() -> ()) -> Result<()> {
 		self.job = Some(Box::new(UnitToUnit::new("job", job)));
-		self.schedule_next_run()?;
+		self.schedule_next_run(&scheduler.now())?;
 		scheduler.add_job(self);
 		Ok(())
 	}
@@ -340,7 +300,7 @@ impl Job {
 		job: extern "C" fn() -> (),
 	) -> Result<()> {
 		self.job = Some(Box::new(ExternUnitToUnit::new("job", job)));
-		self.schedule_next_run()?;
+		self.schedule_next_run(&scheduler.now())?;
 		scheduler.add_job(self);
 		Ok(())
 	}
@@ -375,7 +335,7 @@ impl Job {
 		T: 'static + Clone,
 	{
 		self.job = Some(Box::new(OneToUnit::new("job_one_arg", job, arg)));
-		self.schedule_next_run()?;
+		self.schedule_next_run(&scheduler.now())?;
 		scheduler.add_job(self);
 		Ok(())
 	}
@@ -433,7 +393,7 @@ impl Job {
 			arg_one,
 			arg_two,
 		)));
-		self.schedule_next_run()?;
+		self.schedule_next_run(&scheduler.now())?;
 		scheduler.add_job(self);
 		Ok(())
 	}
@@ -479,7 +439,7 @@ impl Job {
 			arg_two,
 			arg_three,
 		)));
-		self.schedule_next_run()?;
+		self.schedule_next_run(&scheduler.now())?;
 		scheduler.add_job(self);
 		Ok(())
 	}
@@ -530,7 +490,7 @@ impl Job {
 			arg_three,
 			arg_four,
 		)));
-		self.schedule_next_run()?;
+		self.schedule_next_run(&scheduler.now())?;
 		scheduler.add_job(self);
 		Ok(())
 	}
@@ -586,7 +546,7 @@ impl Job {
 			arg_four,
 			arg_five,
 		)));
-		self.schedule_next_run()?;
+		self.schedule_next_run(&scheduler.now())?;
 		scheduler.add_job(self);
 		Ok(())
 	}
@@ -654,14 +614,15 @@ impl Job {
 			arg_five,
 			arg_six,
 		)));
-		self.schedule_next_run()?;
+		self.schedule_next_run(&scheduler.now())?;
 		scheduler.add_job(self);
 		Ok(())
 	}
 
 	/// Check whether this job should be run now
-	pub(crate) fn should_run(&self) -> bool {
-		self.next_run.is_some() && self.now() >= self.next_run.unwrap()
+	// FIXME I think this belongs on Scheduler
+	pub(crate) fn should_run(&self, now: &Zoned) -> bool {
+		self.next_run.is_some() && now >= self.next_run.as_ref().unwrap()
 	}
 
 	/// Run this job and immediately reschedule it, returning true.  If job should cancel, return false.
@@ -674,8 +635,9 @@ impl Job {
 	///
 	/// Returns an error if unable to schedule the run.
 	// FIXME: if we support return values from job fns, this fn should return that.
-	pub fn execute(&mut self) -> Result<bool> {
-		if self.is_overdue(self.now()) {
+	// FIXME: I think this also belongs on scheduler
+	pub fn execute(&mut self, now: &Zoned) -> Result<bool> {
+		if self.is_overdue(now) {
 			debug!("Deadline already reached, cancelling job {self}");
 			return Ok(false);
 		}
@@ -691,10 +653,10 @@ impl Job {
 		{
 			self.call_count += 1;
 		}
-		self.last_run = Some(self.now());
-		self.schedule_next_run()?;
+		self.last_run = Some(now.clone());
+		self.schedule_next_run(now)?;
 
-		if self.is_overdue(self.now()) {
+		if self.is_overdue(now) {
 			debug!("Execution went over deadline, cancelling job {self}",);
 			return Ok(false);
 		}
@@ -837,7 +799,7 @@ impl Job {
 	/// # Errors
 	///
 	/// Returns an error if this assignment is incompatible with the current configuration.
-	fn set_weekday_mode(mut self, weekday: Weekday) -> Result<Self> {
+	fn set_weekday_mode(mut self, weekday: civil::Weekday) -> Result<Self> {
 		if self.interval != 1 {
 			Err(weekday_error(weekday))
 		} else if let Some(w) = self.start_day {
@@ -853,7 +815,7 @@ impl Job {
 	///
 	/// Returns an error if this assignment is incompatible with the current configuration.
 	pub fn monday(self) -> Result<Self> {
-		self.set_weekday_mode(Weekday::Mon)
+		self.set_weekday_mode(civil::Weekday::Monday)
 	}
 
 	/// Set weekly mode on Tuesday
@@ -861,7 +823,7 @@ impl Job {
 	///
 	/// Returns an error if this assignment is incompatible with the current configuration.
 	pub fn tuesday(self) -> Result<Self> {
-		self.set_weekday_mode(Weekday::Tue)
+		self.set_weekday_mode(civil::Weekday::Tuesday)
 	}
 
 	/// Set weekly mode on Wednesday
@@ -869,7 +831,7 @@ impl Job {
 	///
 	/// Returns an error if this assignment is incompatible with the current configuration.
 	pub fn wednesday(self) -> Result<Self> {
-		self.set_weekday_mode(Weekday::Wed)
+		self.set_weekday_mode(civil::Weekday::Wednesday)
 	}
 
 	/// Set weekly mode on Thursday
@@ -877,7 +839,7 @@ impl Job {
 	///
 	/// Returns an error if this assignment is incompatible with the current configuration.
 	pub fn thursday(self) -> Result<Self> {
-		self.set_weekday_mode(Weekday::Thu)
+		self.set_weekday_mode(civil::Weekday::Thursday)
 	}
 
 	/// Set weekly mode on Friday
@@ -885,7 +847,7 @@ impl Job {
 	///
 	/// Returns an error if this assignment is incompatible with the current configuration.
 	pub fn friday(self) -> Result<Self> {
-		self.set_weekday_mode(Weekday::Fri)
+		self.set_weekday_mode(civil::Weekday::Friday)
 	}
 
 	/// Set weekly mode on Saturday
@@ -893,7 +855,7 @@ impl Job {
 	///
 	/// Returns an error if this assignment is incompatible with the current configuration.
 	pub fn saturday(self) -> Result<Self> {
-		self.set_weekday_mode(Weekday::Sat)
+		self.set_weekday_mode(civil::Weekday::Saturday)
 	}
 
 	/// Set weekly mode on Sunday
@@ -901,11 +863,11 @@ impl Job {
 	///
 	/// Returns an error if this assignment is incompatible with the current configuration.
 	pub fn sunday(self) -> Result<Self> {
-		self.set_weekday_mode(Weekday::Sun)
+		self.set_weekday_mode(civil::Weekday::Sunday)
 	}
 
 	/// Compute the timestamp for the next run
-	fn schedule_next_run(&mut self) -> Result<()> {
+	fn schedule_next_run(&mut self, now: &Zoned) -> Result<()> {
 		// If "latest" is set, find the actual interval for this run, otherwise just used stored val
 		let interval = match self.latest {
 			Some(v) => {
@@ -920,7 +882,7 @@ impl Job {
 		// Calculate period (Duration)
 		let period = self.unit()?.duration(interval);
 		self.period = Some(period);
-		self.next_run = Some(self.now() + period);
+		self.next_run = Some(now + period);
 
 		// Handle start day for weekly jobs
 		if let Some(w) = self.start_day {
@@ -929,14 +891,15 @@ impl Job {
 				return Err(Error::StartDayError);
 			}
 
-			let weekday_num = w.num_days_from_monday();
+			let weekday_num = w.to_monday_zero_offset();
 			let mut days_ahead = i64::from(weekday_num)
 				- i64::from(
 					self.next_run
+						.as_ref()
 						.ok_or(Error::NextRunUnreachable)?
-						.date_naive()
+						.date()
 						.weekday()
-						.num_days_from_monday(),
+						.to_monday_zero_offset(),
 				);
 
 			// Check if the weekday already happened this week, advance a week if so
@@ -945,8 +908,11 @@ impl Job {
 			}
 
 			self.next_run = Some(
-				self.next_run()? + Unit::Day.duration(u32::try_from(days_ahead).unwrap())
-					- self.period()?,
+				self.next_run()?
+					.checked_add(Unit::Day.duration(u32::try_from(days_ahead).unwrap()))
+					.unwrap()
+					.checked_sub(&self.period()?)
+					.unwrap(),
 			);
 		}
 
@@ -974,32 +940,45 @@ impl Job {
 			} else {
 				next_run.minute()
 			};
-			let naive_time = NaiveTime::from_hms_opt(hour, minute, second)
-				.ok_or(invalid_hms_error(hour, minute, second))?;
-			let naive_date = next_run.date_naive();
-			let local_datetime = Local
-				.from_local_datetime(&naive_date.and_time(naive_time))
+			let naive_time = civil::time(hour, minute, second, 0);
+			let naive_date = next_run.date();
+			let tz = next_run.time_zone();
+			let local_datetime = civil::DateTime::from_parts(naive_date, naive_time)
+				.to_zoned(tz.clone())
 				.unwrap();
 			self.next_run = Some(local_datetime);
 
 			// Make sure job gets run TODAY or THIS HOUR
 			// Accounting for jobs take long enough that they finish in the next period
-			if self.last_run.is_none() || (self.next_run()? - self.last_run()?) > self.period()? {
-				let now = self.now();
+			if self.last_run.is_none()
+				|| self
+					.next_run()?
+					.since(&self.last_run()?)
+					.unwrap()
+					.compare(self.period()?)
+					.unwrap() == std::cmp::Ordering::Greater
+			{
 				if self.unit == Some(Day)
 					&& self.at_time.unwrap() > now.time()
 					&& self.interval == 1
 				{
-					self.next_run = Some(self.next_run.unwrap() - Day.duration(1));
+					// FIXME all of this should be jiffier
+					self.next_run = Some(
+						self.next_run
+							.as_ref()
+							.unwrap()
+							.checked_sub(Day.duration(1))
+							.unwrap(),
+					);
 				} else if self.unit == Some(Hour)
 					&& (self.at_time.unwrap().minute() > now.minute()
 						|| self.at_time.unwrap().minute() == now.minute()
 							&& self.at_time.unwrap().second() > now.second())
 				{
-					self.next_run = Some(self.next_run()? - Hour.duration(1));
+					self.next_run = Some(self.next_run()?.checked_sub(Hour.duration(1)).unwrap());
 				} else if self.unit == Some(Minute) && self.at_time.unwrap().second() > now.second()
 				{
-					self.next_run = Some(self.next_run()? - Minute.duration(1));
+					self.next_run = Some(self.next_run()?.checked_sub(Minute.duration(1)).unwrap());
 				}
 			}
 		}
@@ -1007,9 +986,9 @@ impl Job {
 		// Check if at_time on given day should fire today or next week
 		if self.start_day.is_some() && self.at_time.is_some() {
 			// unwraps are safe, we already set them in this function
-			let next = self.next_run.unwrap(); // safe, we already set it
-			if (next - self.now()).num_days() >= 7 {
-				self.next_run = Some(next - self.period.unwrap());
+			let next = self.next_run.as_ref().unwrap(); // safe, we already set it
+			if now.until(next).unwrap().get_days() >= 7 {
+				self.next_run = Some(next.checked_sub(self.period.unwrap()).unwrap());
 			}
 		}
 
@@ -1017,19 +996,19 @@ impl Job {
 	}
 
 	/// Check if given time is after the `cancel_after` time
-	fn is_overdue(&self, when: Timestamp) -> bool {
-		self.cancel_after.is_some() && when > self.cancel_after.unwrap()
+	fn is_overdue(&self, when: &Zoned) -> bool {
+		self.cancel_after.is_some() && when > self.cancel_after.as_ref().unwrap()
 	}
 
-	pub(crate) fn last_run(&self) -> Result<Timestamp> {
-		self.last_run.ok_or(Error::LastRunUnreachable)
+	pub(crate) fn last_run(&self) -> Result<Zoned> {
+		self.last_run.clone().ok_or(Error::LastRunUnreachable)
 	}
 
-	pub(crate) fn next_run(&self) -> Result<Timestamp> {
-		self.next_run.ok_or(Error::NextRunUnreachable)
+	pub(crate) fn next_run(&self) -> Result<Zoned> {
+		self.next_run.clone().ok_or(Error::NextRunUnreachable)
 	}
 
-	pub(crate) fn period(&self) -> Result<Duration> {
+	pub(crate) fn period(&self) -> Result<Span> {
 		self.period.ok_or(Error::PeriodUnreachable)
 	}
 
@@ -1186,8 +1165,13 @@ mod tests {
 		let mut job = every_single();
 		let expected = "Attempted to use a start day for a unit other than `weeks`".to_string();
 		job.unit = Some(Unit::Day);
-		job.start_day = Some(Weekday::Wed);
-		assert_eq!(job.schedule_next_run().unwrap_err().to_string(), expected);
+		job.start_day = Some(civil::Weekday::Wednesday);
+		assert_eq!(
+			job.schedule_next_run(&Zoned::now())
+				.unwrap_err()
+				.to_string(),
+			expected
+		);
 	}
 
 	#[test]

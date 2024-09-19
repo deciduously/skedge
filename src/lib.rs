@@ -6,7 +6,7 @@
 //! Define a work function:
 //! ```rust
 //! fn job() {
-//!     println!("Hello, it's {}!", chrono::Local::now().to_rfc2822());
+//!     println!("Hello, it's {}!", jiff::Zoned::now());
 //! }
 //! ```
 //! You can use up to six arguments:
@@ -18,11 +18,11 @@
 //! Instantiate a `Scheduler` and schedule jobs:
 //! ```rust
 //! # use skedge::{Scheduler, every, every_single};
-//! # use chrono::Local;
+//! # use jiff::Zoned;
 //! # use std::time::Duration;
 //! # use std::thread::sleep;
 //! # fn job() {
-//! #    println!("Hello, it's {}!", Local::now());
+//! #    println!("Hello, it's {}!", Zoned::now());
 //! # }
 //! # fn greet(name: &str) {
 //! #     println!("Hello, {}!", name);
@@ -41,8 +41,8 @@
 //! every(2)
 //!     .to(8)?
 //!     .seconds()?
-//!     .until(Local::now() + chrono::Duration::seconds(30))?
-//!     .run_one_arg(&mut schedule, greet, "Good-Looking")?;
+//!     .until(Zoned::now() + Duration::from_secs(30))?
+//!     .run_one_arg(&mut schedule, greet, "Cool Person")?;
 //! #   Ok(())
 //! # }
 //! ```
@@ -73,7 +73,7 @@ use callable::{
 pub use error::*;
 pub use job::{every, every_single, Interval, Job, Tag};
 pub use scheduler::Scheduler;
-use time::{Real, Timekeeper, Timestamp, Unit};
+use time::{Clock, Timekeeper, Unit};
 
 #[cfg(feature = "ffi")]
 mod ffi;
