@@ -89,7 +89,7 @@ pub mod mock {
 	use std::sync::LazyLock;
 
 	pub(crate) static START: LazyLock<Zoned> =
-		LazyLock::new(|| "2024-01-01:22:00:00[America/New_York]".parse().unwrap());
+		LazyLock::new(|| "2024-01-01T07:00:00[America/New_York]".parse().unwrap());
 
 	/// Mock the datetime for predictable results.
 	#[derive(Debug)]
@@ -115,7 +115,7 @@ pub mod mock {
 		}
 
 		fn add_duration(&mut self, duration: impl Into<ZonedArithmetic>) {
-			let _ = self.instant.checked_add(duration);
+			self.instant = self.instant.checked_add(duration).unwrap();
 		}
 	}
 }

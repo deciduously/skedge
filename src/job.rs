@@ -1132,31 +1132,31 @@ mod tests {
 	fn test_reject_weekday_multiple_weeks() {
 		assert_eq!(
             every(2).monday().unwrap_err().to_string(),
-            "Scheduling jobs on Mon is only allowed for weekly jobs.  Using specific days on a job scheduled to run every 2 or more weeks is not supported".to_string()
+            "Scheduling jobs on Monday is only allowed for weekly jobs.  Using specific days on a job scheduled to run every 2 or more weeks is not supported".to_string()
         );
 		assert_eq!(
             every(2).tuesday().unwrap_err().to_string(),
-            "Scheduling jobs on Tue is only allowed for weekly jobs.  Using specific days on a job scheduled to run every 2 or more weeks is not supported".to_string()
+            "Scheduling jobs on Tuesday is only allowed for weekly jobs.  Using specific days on a job scheduled to run every 2 or more weeks is not supported".to_string()
         );
 		assert_eq!(
             every(2).wednesday().unwrap_err().to_string(),
-            "Scheduling jobs on Wed is only allowed for weekly jobs.  Using specific days on a job scheduled to run every 2 or more weeks is not supported".to_string()
+            "Scheduling jobs on Wednesday is only allowed for weekly jobs.  Using specific days on a job scheduled to run every 2 or more weeks is not supported".to_string()
         );
 		assert_eq!(
             every(2).thursday().unwrap_err().to_string(),
-            "Scheduling jobs on Thu is only allowed for weekly jobs.  Using specific days on a job scheduled to run every 2 or more weeks is not supported".to_string()
+            "Scheduling jobs on Thursday is only allowed for weekly jobs.  Using specific days on a job scheduled to run every 2 or more weeks is not supported".to_string()
         );
 		assert_eq!(
             every(2).friday().unwrap_err().to_string(),
-            "Scheduling jobs on Fri is only allowed for weekly jobs.  Using specific days on a job scheduled to run every 2 or more weeks is not supported".to_string()
+            "Scheduling jobs on Friday is only allowed for weekly jobs.  Using specific days on a job scheduled to run every 2 or more weeks is not supported".to_string()
         );
 		assert_eq!(
             every(2).saturday().unwrap_err().to_string(),
-            "Scheduling jobs on Sat is only allowed for weekly jobs.  Using specific days on a job scheduled to run every 2 or more weeks is not supported".to_string()
+            "Scheduling jobs on Saturday is only allowed for weekly jobs.  Using specific days on a job scheduled to run every 2 or more weeks is not supported".to_string()
         );
 		assert_eq!(
             every(2).sunday().unwrap_err().to_string(),
-            "Scheduling jobs on Sun is only allowed for weekly jobs.  Using specific days on a job scheduled to run every 2 or more weeks is not supported".to_string()
+            "Scheduling jobs on Sunday is only allowed for weekly jobs.  Using specific days on a job scheduled to run every 2 or more weeks is not supported".to_string()
         );
 	}
 

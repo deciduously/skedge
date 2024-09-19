@@ -175,7 +175,7 @@ impl Scheduler {
 	/// ```
 	#[must_use]
 	pub fn idle_seconds(&self) -> Option<i64> {
-		Some(self.next_run()?.until(&self.now()).unwrap().get_seconds())
+		Some(self.next_run()?.since(&self.now()).unwrap().get_seconds())
 	}
 
 	/// Get the most recently added job, for testing
@@ -240,12 +240,15 @@ mod tests {
 		);
 
 		scheduler.add_duration(17.seconds());
+		scheduler.run_pending()?;
+		println!("after one: {}", scheduler.now());
 		assert_eq!(
 			scheduler.next_run(),
 			Some(START.checked_add((17 * 2).seconds()).unwrap())
 		);
 
 		scheduler.add_duration(17.seconds());
+		scheduler.run_pending()?;
 		assert_eq!(
 			scheduler.next_run(),
 			Some(START.checked_add((17 * 3).seconds()).unwrap())
@@ -253,6 +256,7 @@ mod tests {
 
 		// This time, we should hit the minute mark next, not the next 17 second mark
 		scheduler.add_duration(17.seconds());
+		scheduler.run_pending()?;
 		assert_eq!(scheduler.idle_seconds(), Some(9));
 		assert_eq!(
 			scheduler.next_run(),
@@ -261,6 +265,7 @@ mod tests {
 
 		// Afterwards, back to the 17 second job
 		scheduler.add_duration(9.seconds());
+		scheduler.run_pending()?;
 		assert_eq!(scheduler.idle_seconds(), Some(8));
 		assert_eq!(
 			scheduler.next_run(),
@@ -393,10 +398,11 @@ mod tests {
 		);
 
 		// Make sure it cancels a job after next_run passes the deadline
+		// FIXME - this test fails? call count never increments
 
 		scheduler.clear(None);
-		let deadline = civil::date(2021, 1, 1)
-			.at(12, 0, 0, 0)
+		let deadline = civil::date(2024, 1, 1)
+			.at(7, 0, 10, 0)
 			.intz("America/New_York")
 			.unwrap();
 		every(5)
@@ -409,12 +415,13 @@ mod tests {
 		assert_eq!(scheduler.most_recent_job().unwrap().call_count, 1);
 		assert_eq!(scheduler.jobs.len(), 1);
 		scheduler.add_duration(5.seconds());
+		scheduler.run_pending()?;
 		assert_eq!(scheduler.jobs.len(), 1);
 		assert_eq!(scheduler.most_recent_job().unwrap().call_count, 2);
-		scheduler.run_pending()?;
 		scheduler.add_duration(5.seconds());
 		scheduler.run_pending()?;
 		// TODO - how to test to ensure the job did not run?
+		// FIXME - job doesnt disappear?
 		assert_eq!(scheduler.jobs.len(), 0);
 
 		// Make sure it cancels a job if current execution passes the deadline
@@ -443,9 +450,9 @@ mod tests {
 			.run(&mut scheduler, job)?;
 		let j = scheduler.most_recent_job().unwrap();
 
-		assert_eq!(j.next_run.as_ref().unwrap().year(), 2021);
+		assert_eq!(j.next_run.as_ref().unwrap().year(), 2024);
 		assert_eq!(j.next_run.as_ref().unwrap().month(), 1);
-		assert_eq!(j.next_run.as_ref().unwrap().day(), 6);
+		assert_eq!(j.next_run.as_ref().unwrap().day(), 3);
 		assert_eq!(j.next_run.as_ref().unwrap().hour(), 22);
 		assert_eq!(j.next_run.as_ref().unwrap().minute(), 38);
 		assert_eq!(j.next_run.as_ref().unwrap().second(), 10);
@@ -458,9 +465,9 @@ mod tests {
 			.run(&mut scheduler, job)?;
 		let j = scheduler.most_recent_job().unwrap();
 
-		assert_eq!(j.next_run.as_ref().unwrap().year(), 2021);
+		assert_eq!(j.next_run.as_ref().unwrap().year(), 2024);
 		assert_eq!(j.next_run.as_ref().unwrap().month(), 1);
-		assert_eq!(j.next_run.as_ref().unwrap().day(), 6);
+		assert_eq!(j.next_run.as_ref().unwrap().day(), 3);
 		assert_eq!(j.next_run.as_ref().unwrap().hour(), 22);
 		assert_eq!(j.next_run.as_ref().unwrap().minute(), 39);
 		assert_eq!(j.next_run.as_ref().unwrap().second(), 0);
