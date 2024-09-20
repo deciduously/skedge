@@ -68,17 +68,16 @@ Clone this repo. See [`CONTRIBUTING.md`](https://github.com/deciduously/skedge/b
 
 ### Dependencies
 
-- **Stable [Rust](https://www.rust-lang.org/tools/install)**: The default stable toolchain is fine. Obtainable via `rustup` using the instructions at this link.
+- **Stable [Rust](https://www.rust-lang.org/tools/install)**. Obtainable via `rustup` using the instructions at this link.
 
 ### Crates
 
-- [chrono](https://github.com/chronotope/chrono) - Date and time handling
-- [log](https://github.com/rust-lang/log) - Logging
-- [pretty_env_logger](https://github.com/seanmonstar/pretty-env-logger) - Pretty logging
-- [lazy_static](https://github.com/rust-lang-nursery/lazy-static.rs) - Lazily evaluated statics
-- [rand](https://rust-random.github.io/book/) - Random number generation
+- [jiff](https://github.com/BurntSushi/jiff) - Date and time handling
+- [libc](https://github.com/rust-lang/libc) - libc bindings for CFFI (optional)
+- [rand](https://rust-random.github.io/book/) - Random number generation (optional)
 - [regex](https://github.com/rust-lang/regex) - Regular expressions
 - [thiserror](https://github.com/dtolnay/thiserror) - Error derive macro
+- [tracing](https://github.com/tokio-rs/tracing) - what it says on the tin
 
 #### Development-Only
 
