@@ -83,7 +83,7 @@ use callable::{
 pub use error::*;
 pub use job::{every, every_single, Interval, Job, Tag};
 pub use scheduler::Scheduler;
-use time::{Clock, Timekeeper, Unit};
+use time::{Clock, Timekeeper};
 
 #[cfg(feature = "ffi")]
 mod ffi;

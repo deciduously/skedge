@@ -1,19 +1,20 @@
 //! This module defines the error type and Result alias.
 
-use crate::Unit;
-use jiff::civil::Weekday;
+use jiff::{civil::Weekday, Unit};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
 	#[error("Tried to reference this job's inner subroutine but failed")]
 	CallableUnreachable,
-	#[error("Use {0}s() instead of {0}()")]
-	Interval(Unit),
-	#[error("Cannot set {0}s mode, already using {1}s")]
+	#[error("Used singular instead of plural unit method")]
+	IntervalPlural,
+	#[error("Cannot set {0:?}s mode, already using {1:?}s")]
 	Unit(Unit, Unit),
 	#[error("Latest val is greater than interval val")]
 	InvalidInterval,
+	#[error("Could not fit u32 into i32")]
+	IntegerOverflow(u32),
 	#[error("Invalid unit (valid units are `days`, `hours`, and `minutes`)")]
 	InvalidUnit,
 	#[error("Invalid hour ({0} is not between 0 and 23)")]
@@ -58,11 +59,6 @@ pub(crate) fn unit_error(intended: Unit, existing: Unit) -> Error {
 /// Construct a new invalid hour error.
 pub(crate) fn invalid_hour_error(hour: i8) -> Error {
 	Error::InvalidHour(hour)
-}
-
-/// Construct a new Interval error.
-pub(crate) fn interval_error(interval: Unit) -> Error {
-	Error::Interval(interval)
 }
 
 /// Construct a new Weekday error.

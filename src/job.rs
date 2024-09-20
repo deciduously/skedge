@@ -1,6 +1,6 @@
 //! A Job is a piece of work that can be configured and added to the scheduler
 
-use jiff::{civil, Span, Zoned};
+use jiff::{civil, Span, ToSpan, Unit, Zoned};
 #[cfg(feature = "random")]
 use rand::prelude::*;
 use regex::Regex;
@@ -15,9 +15,9 @@ use tracing::debug;
 #[cfg(feature = "ffi")]
 use crate::callable::ffi::ExternUnitToUnit;
 use crate::{
-	interval_error, invalid_hour_error, unit_error, weekday_collision_error, weekday_error,
-	Callable, Error, FiveToUnit, FourToUnit, OneToUnit, Result, Scheduler, SixToUnit, ThreeToUnit,
-	Timekeeper, TwoToUnit, Unit, UnitToUnit,
+	invalid_hour_error, unit_error, weekday_collision_error, weekday_error, Callable, Error,
+	FiveToUnit, FourToUnit, OneToUnit, Result, Scheduler, SixToUnit, ThreeToUnit, Timekeeper,
+	TwoToUnit, UnitToUnit,
 };
 
 /// A Tag is used to categorize a job.
@@ -45,7 +45,6 @@ pub fn every(interval: Interval) -> Job {
 ///
 /// Equivalent to `every(1)`.
 #[inline]
-#[allow(clippy::module_name_repetitions)]
 #[must_use]
 pub fn every_single() -> Job {
 	Job::new(1)
@@ -683,7 +682,7 @@ impl Job {
 		if self.interval == 1 {
 			self.set_unit_mode(unit)
 		} else {
-			Err(interval_error(unit))
+			Err(Error::IntervalPlural)
 		}
 	}
 
@@ -871,137 +870,137 @@ impl Job {
 	}
 
 	/// Compute the timestamp for the next run
-	fn schedule_next_run(&mut self, now: &Zoned) -> Result<()> {
-		// If "latest" is set, find the actual interval for this run, otherwise just used stored val
-		let interval = {
-			#[cfg(feature = "random")]
-			match self.latest {
-				Some(v) => {
-					if v < self.interval {
-						return Err(Error::InvalidInterval);
-					}
-					thread_rng().gen_range(self.interval..v)
-				},
-				None => self.interval,
-			}
-			#[cfg(not(feature = "random"))]
-			self.interval
-		};
+	fn schedule_next_run(&mut self, _now: &Zoned) -> Result<()> {
+		// 	// If "latest" is set, find the actual interval for this run, otherwise just used stored val
+		// 	let interval = {
+		// 		#[cfg(feature = "random")]
+		// 		match self.latest {
+		// 			Some(v) => {
+		// 				if v < self.interval {
+		// 					return Err(Error::InvalidInterval);
+		// 				}
+		// 				thread_rng().gen_range(self.interval..v)
+		// 			},
+		// 			None => self.interval,
+		// 		}
+		// 		#[cfg(not(feature = "random"))]
+		// 		self.interval
+		// 	};
 
-		// Calculate period (Duration)
-		let period = self.unit()?.duration(interval);
-		self.period = Some(period);
-		self.next_run = Some(now + period);
+		// 	// Calculate period (Duration)
+		// 	self.period = self.period()?;
+		// 	self.next_run = Some(now + period);
 
-		// Handle start day for weekly jobs
-		if let Some(w) = self.start_day {
-			// This only makes sense for weekly jobs
-			if self.unit != Some(Unit::Week) {
-				return Err(Error::StartDayError);
-			}
+		// 	// Handle start day for weekly jobs
+		// 	if let Some(w) = self.start_day {
+		// 		// This only makes sense for weekly jobs
+		// 		if self.unit != Some(Unit::Week) {
+		// 			return Err(Error::StartDayError);
+		// 		}
 
-			let weekday_num = w.to_monday_zero_offset();
-			let mut days_ahead = i64::from(weekday_num)
-				- i64::from(
-					self.next_run
-						.as_ref()
-						.ok_or(Error::NextRunUnreachable)?
-						.date()
-						.weekday()
-						.to_monday_zero_offset(),
-				);
+		// 		let weekday_num = w.to_monday_zero_offset();
+		// 		let mut days_ahead = i64::from(weekday_num)
+		// 			- i64::from(
+		// 				self.next_run
+		// 					.as_ref()
+		// 					.ok_or(Error::NextRunUnreachable)?
+		// 					.date()
+		// 					.weekday()
+		// 					.to_monday_zero_offset(),
+		// 			);
 
-			// Check if the weekday already happened this week, advance a week if so
-			if days_ahead <= 0 {
-				days_ahead += 7;
-			}
+		// 		// Check if the weekday already happened this week, advance a week if so
+		// 		if days_ahead <= 0 {
+		// 			days_ahead += 7;
+		// 		}
 
-			self.next_run = Some(
-				self.next_run()?
-					.checked_add(Unit::Day.duration(u32::try_from(days_ahead).unwrap()))
-					.unwrap()
-					.checked_sub(&self.period()?)
-					.unwrap(),
-			);
-		}
+		// 		self.next_run = Some(
+		// 			self.next_run()?
+		// 				.checked_add(Unit::Day.duration(u32::try_from(days_ahead).unwrap()))
+		// 				.unwrap()
+		// 				.checked_sub(&self.period()?)
+		// 				.unwrap(),
+		// 		);
+		// 	}
 
-		// Handle specified at_time
-		if let Some(at_t) = self.at_time {
-			use Unit::{Day, Hour, Minute};
-			// Validate configuration
-			if ![Some(Day), Some(Hour), Some(Minute)].contains(&self.unit)
-				&& self.start_day.is_none()
-			{
-				return Err(Error::UnspecifiedStartDay);
-			}
+		// 	// Handle specified at_time
+		// 	if let Some(at_t) = self.at_time {
+		// 		use Unit::{Day, Hour, Minute};
+		// 		// Validate configuration
+		// 		if ![Some(Day), Some(Hour), Some(Minute)].contains(&self.unit)
+		// 			&& self.start_day.is_none()
+		// 		{
+		// 			return Err(Error::UnspecifiedStartDay);
+		// 		}
 
-			// Update next_run appropriately
-			let next_run = self.next_run()?;
-			let second = at_t.second();
-			let hour = if self.unit == Some(Day) || self.start_day.is_some() {
-				at_t.hour()
-			} else {
-				next_run.hour()
-			};
-			let minute = if [Some(Day), Some(Hour)].contains(&self.unit) || self.start_day.is_some()
-			{
-				at_t.minute()
-			} else {
-				next_run.minute()
-			};
-			let naive_time = civil::time(hour, minute, second, 0);
-			let naive_date = next_run.date();
-			let tz = next_run.time_zone();
-			let local_datetime = civil::DateTime::from_parts(naive_date, naive_time)
-				.to_zoned(tz.clone())
-				.unwrap();
-			self.next_run = Some(local_datetime);
+		// 		// Update next_run appropriately
+		// 		let next_run = self.next_run()?;
+		// 		let second = at_t.second();
+		// 		let hour = if self.unit == Some(Day) || self.start_day.is_some() {
+		// 			at_t.hour()
+		// 		} else {
+		// 			next_run.hour()
+		// 		};
+		// 		let minute = if [Some(Day), Some(Hour)].contains(&self.unit) || self.start_day.is_some()
+		// 		{
+		// 			at_t.minute()
+		// 		} else {
+		// 			next_run.minute()
+		// 		};
+		// 		let naive_time = civil::time(hour, minute, second, 0);
+		// 		let naive_date = next_run.date();
+		// 		let tz = next_run.time_zone();
+		// 		let local_datetime = civil::DateTime::from_parts(naive_date, naive_time)
+		// 			.to_zoned(tz.clone())
+		// 			.unwrap();
+		// 		self.next_run = Some(local_datetime);
 
-			// Make sure job gets run TODAY or THIS HOUR
-			// Accounting for jobs take long enough that they finish in the next period
-			if self.last_run.is_none()
-				|| self
-					.next_run()?
-					.since(&self.last_run()?)
-					.unwrap()
-					.compare(self.period()?)
-					.unwrap() == std::cmp::Ordering::Greater
-			{
-				if self.unit == Some(Day)
-					&& self.at_time.unwrap() > now.time()
-					&& self.interval == 1
-				{
-					// FIXME all of this should be jiffier
-					self.next_run = Some(
-						self.next_run
-							.as_ref()
-							.unwrap()
-							.checked_sub(Day.duration(1))
-							.unwrap(),
-					);
-				} else if self.unit == Some(Hour)
-					&& (self.at_time.unwrap().minute() > now.minute()
-						|| self.at_time.unwrap().minute() == now.minute()
-							&& self.at_time.unwrap().second() > now.second())
-				{
-					self.next_run = Some(self.next_run()?.checked_sub(Hour.duration(1)).unwrap());
-				} else if self.unit == Some(Minute) && self.at_time.unwrap().second() > now.second()
-				{
-					self.next_run = Some(self.next_run()?.checked_sub(Minute.duration(1)).unwrap());
-				}
-			}
-		}
+		// 		// Make sure job gets run TODAY or THIS HOUR
+		// 		// Accounting for jobs take long enough that they finish in the next period
+		// 		if self.last_run.is_none()
+		// 			|| self
+		// 				.next_run()?
+		// 				.since(&self.last_run()?)
+		// 				.unwrap()
+		// 				.compare(self.period()?)
+		// 				.unwrap() == std::cmp::Ordering::Greater
+		// 		{
+		// 			if self.unit == Some(Day)
+		// 				&& self.at_time.unwrap() > now.time()
+		// 				&& self.interval == 1
+		// 			{
+		// 				// FIXME all of this should be jiffier
+		// 				self.next_run = Some(
+		// 					self.next_run
+		// 						.as_ref()
+		// 						.unwrap()
+		// 						.checked_sub(Day.duration(1))
+		// 						.unwrap(),
+		// 				);
+		// 			} else if self.unit == Some(Hour)
+		// 				&& (self.at_time.unwrap().minute() > now.minute()
+		// 					|| self.at_time.unwrap().minute() == now.minute()
+		// 						&& self.at_time.unwrap().second() > now.second())
+		// 			{
+		// 				self.next_run = Some(self.next_run()?.checked_sub(Hour.duration(1)).unwrap());
+		// 			} else if self.unit == Some(Minute) && self.at_time.unwrap().second() > now.second()
+		// 			{
+		// 				self.next_run = Some(self.next_run()?.checked_sub(Minute.duration(1)).unwrap());
+		// 			}
+		// 		}
+		// 	}
 
-		// Check if at_time on given day should fire today or next week
-		if self.start_day.is_some() && self.at_time.is_some() {
-			// unwraps are safe, we already set them in this function
-			let next = self.next_run.as_ref().unwrap(); // safe, we already set it
-			if now.until(next).unwrap().get_days() >= 7 {
-				self.next_run = Some(next.checked_sub(self.period.unwrap()).unwrap());
-			}
-		}
+		// 	// Check if at_time on given day should fire today or next week
+		// 	if self.start_day.is_some() && self.at_time.is_some() {
+		// 		// unwraps are safe, we already set them in this function
+		// 		let next = self.next_run.as_ref().unwrap(); // safe, we already set it
+		// 		if now.until(next).unwrap().get_days() >= 7 {
+		// 			self.next_run = Some(next.checked_sub(self.period.unwrap()).unwrap());
+		// 		}
+		// 	}
 
-		Ok(())
+		// 	Ok(())
+		todo!()
 	}
 
 	/// Check if given time is after the `cancel_after` time
@@ -1017,8 +1016,23 @@ impl Job {
 		self.next_run.clone().ok_or(Error::NextRunUnreachable)
 	}
 
+	/// Compute the period from the interval and unit.
 	pub(crate) fn period(&self) -> Result<Span> {
-		self.period.ok_or(Error::PeriodUnreachable)
+		let interval =
+			i32::try_from(self.interval).map_err(|_| Error::IntegerOverflow(self.interval))?;
+		let span = match self.unit()? {
+			Unit::Year => interval.years(),
+			Unit::Month => interval.months(),
+			Unit::Week => interval.weeks(),
+			Unit::Day => interval.days(),
+			Unit::Hour => interval.hours(),
+			Unit::Minute => interval.minutes(),
+			Unit::Second => interval.seconds(),
+			Unit::Millisecond => interval.milliseconds(),
+			Unit::Microsecond => interval.microseconds(),
+			Unit::Nanosecond => interval.nanoseconds(),
+		};
+		Ok(span)
 	}
 
 	pub(crate) fn unit(&self) -> Result<Unit> {

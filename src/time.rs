@@ -37,52 +37,6 @@ impl Timekeeper for Clock {
 	}
 }
 
-/// Jobs can be periodic over one of these units of time
-// FIXME can I use a jiff type instead?
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Unit {
-	Second,
-	Minute,
-	Hour,
-	Day,
-	Week,
-	Month,
-	Year,
-}
-
-impl Unit {
-	/// Get a [`jiff::SignedDuration`] from an interval based on time unit.
-	pub fn duration(self, interval: u32) -> Span {
-		use Unit::{Day, Hour, Minute, Month, Second, Week, Year};
-		let interval = i64::from(interval);
-		match self {
-			Second => interval.seconds(),
-			Minute => interval.minutes(),
-			Hour => interval.hours(),
-			Day => interval.days(),
-			Week => interval.weeks(),
-			Month => interval.months(),
-			Year => interval.years(),
-		}
-	}
-}
-
-impl fmt::Display for Unit {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		use Unit::{Day, Hour, Minute, Month, Second, Week, Year};
-		let s = match self {
-			Second => "second",
-			Minute => "minute",
-			Hour => "hour",
-			Day => "day",
-			Week => "week",
-			Month => "month",
-			Year => "year",
-		};
-		write!(f, "{s}")
-	}
-}
-
 #[cfg(test)]
 pub mod mock {
 	use super::Timekeeper;
