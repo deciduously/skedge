@@ -6,12 +6,12 @@ edition = "2021"
 homepage = "https://crates.io/crates/skedge"
 include = ["**/*.rs", "Cargo.toml"]
 keywords = ["utility", "scheduling"]
-license = "BSD-3-Clause"
+license = "MIT"
 name = "skedge"
 readme = "README.md"
 repository = "https://github.com/deciduously/skedge"
-version = "0.2.0"
-rust-version = "1.80.0"
+version = "0.3.0"
+rust-version = "1.80"
 
 [lib]
 crate-type = ["rlib", "cdylib"]
@@ -21,15 +21,15 @@ default = []
 ffi = []
 
 [dependencies]
-chrono = "0.4"
-libc = { version = "0.2" }
+jiff = "0.1"
+libc = "0.2"
 rand = "0.8"
 regex = "1.5"
 thiserror = "1.0"
 tracing = "0.1"
 
 [dev-dependencies]
-pretty_assertions = "1.2"
+pretty_assertions = "1"
 
 [profile.release]
 lto = true

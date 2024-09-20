@@ -1,37 +1,39 @@
 //! For mocking purposes, access to the current time is controlled directed through this struct.
 
-use chrono::{prelude::*, Duration};
+use jiff::{Span, ToSpan, Zoned};
 use std::fmt;
-
-/// Timestamps are in the users local timezone
-pub type Timestamp = DateTime<Local>;
 
 pub(crate) trait Timekeeper: std::fmt::Debug {
 	/// Return the current time
-	fn now(&self) -> Timestamp;
+	fn now(&self) -> Zoned;
 	/// Add a specific duration for testing purposes
 	#[cfg(test)]
-	fn add_duration(&mut self, duration: Duration);
+	fn add_duration(&mut self, duration: impl Into<jiff::ZonedArithmetic>);
 }
 
-impl PartialEq for dyn Timekeeper {
-	fn eq(&self, other: &Self) -> bool {
-		self.now() - other.now() < Duration::milliseconds(10)
-	}
-}
-
-impl Eq for dyn Timekeeper {}
-
-#[derive(Debug, Default, Clone, Copy)]
-pub struct Real;
-
-impl Timekeeper for Real {
-	fn now(&self) -> Timestamp {
-		Local::now()
-	}
+#[derive(Debug, Default)]
+pub(crate) enum Clock {
+	#[default]
+	Real,
 	#[cfg(test)]
-	fn add_duration(&mut self, _duration: Duration) {
-		unreachable!() // unneeded
+	Mock(mock::Mock),
+}
+
+impl Timekeeper for Clock {
+	fn now(&self) -> Zoned {
+		match self {
+			Clock::Real => Zoned::now(),
+			#[cfg(test)]
+			Clock::Mock(mock) => mock.now(),
+		}
+	}
+
+	#[cfg(test)]
+	fn add_duration(&mut self, duration: impl Into<jiff::ZonedArithmetic>) {
+		match self {
+			Clock::Real => unreachable!(),
+			Clock::Mock(mock) => mock.add_duration(duration),
+		}
 	}
 }
 
@@ -48,18 +50,18 @@ pub enum Unit {
 }
 
 impl Unit {
-	/// Get a `chrono::Duration` from an interval based on time unit
-	pub fn duration(self, interval: u32) -> Duration {
+	/// Get a [`jiff::SignedDuration`] from an interval based on time unit.
+	pub fn duration(self, interval: u32) -> Span {
 		use Unit::{Day, Hour, Minute, Month, Second, Week, Year};
 		let interval = i64::from(interval);
 		match self {
-			Second => Duration::seconds(interval),
-			Minute => Duration::minutes(interval),
-			Hour => Duration::hours(interval),
-			Day => Duration::days(interval),
-			Week => Duration::weeks(interval),
-			Month => Duration::weeks(interval * 4),
-			Year => Duration::weeks(interval * 52),
+			Second => interval.seconds(),
+			Minute => interval.minutes(),
+			Hour => interval.hours(),
+			Day => interval.days(),
+			Week => interval.weeks(),
+			Month => interval.months(),
+			Year => interval.years(),
 		}
 	}
 }
@@ -82,40 +84,38 @@ impl fmt::Display for Unit {
 
 #[cfg(test)]
 pub mod mock {
-	use super::{Local, TimeZone, Timekeeper, Timestamp};
-	/// Default starting time
-	pub static START: std::sync::LazyLock<Timestamp> = std::sync::LazyLock::new(|| {
-		Local
-			.with_ymd_and_hms(2021, 1, 1, 12, 0, 0)
-			.single()
-			.expect("valid date")
-	});
+	use super::Timekeeper;
+	use jiff::{Zoned, ZonedArithmetic};
+	use std::sync::LazyLock;
+
+	pub(crate) static START: LazyLock<Zoned> =
+		LazyLock::new(|| "2024-01-01T07:00:00[America/New_York]".parse().unwrap());
 
 	/// Mock the datetime for predictable results.
-	#[derive(Debug, Clone, Copy)]
+	#[derive(Debug)]
 	pub struct Mock {
-		stamp: Timestamp,
+		instant: Zoned,
 	}
 
 	impl Mock {
-		pub fn new(stamp: Timestamp) -> Self {
-			Self { stamp }
+		pub fn new(stamp: Zoned) -> Self {
+			Self { instant: stamp }
 		}
 	}
 
 	impl Default for Mock {
 		fn default() -> Self {
-			Self::new(*START)
+			Self::new(START.clone())
 		}
 	}
 
 	impl Timekeeper for Mock {
-		fn now(&self) -> Timestamp {
-			self.stamp
+		fn now(&self) -> Zoned {
+			self.instant.clone()
 		}
 
-		fn add_duration(&mut self, duration: chrono::Duration) {
-			self.stamp += duration;
+		fn add_duration(&mut self, duration: impl Into<ZonedArithmetic>) {
+			self.instant = self.instant.checked_add(duration).unwrap();
 		}
 	}
 }
