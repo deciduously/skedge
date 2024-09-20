@@ -126,9 +126,9 @@ impl Scheduler {
 	/// # }
 	/// ```
 	pub fn clear(&mut self, tag: Option<Tag>) {
-		if let Some(t) = tag {
-			debug!("Deleting all jobs tagged {t}");
-			self.jobs.retain(|el| !el.has_tag(&t));
+		if let Some(tag) = tag {
+			debug!(?tag, "Deleting all jobs with tag");
+			self.jobs.retain(|el| !el.has_tag(&tag));
 		} else {
 			debug!("Deleting ALL jobs!!");
 			drop(self.jobs.drain(..));
@@ -153,16 +153,16 @@ impl Scheduler {
 	///
 	/// Would panic if it can't call `min()` on an array that we know has at least one element.
 	#[must_use]
-	pub fn next_run(&self) -> Option<Zoned> {
+	pub fn next_run(&self) -> Option<&Zoned> {
 		if self.jobs.is_empty() {
 			None
 		} else {
 			// unwrap is safe, we know there's at least one job
-			self.jobs.iter().min().unwrap().next_run.clone()
+			self.jobs.iter().min().unwrap().next_run.as_ref()
 		}
 	}
 
-	/// Number of whole seconds until next run.  None if no jobs scheduled
+	/// Number of whole seconds until next run.  None if no jobs scheduled.
 	/// ```rust
 	/// # use skedge::{every, Scheduler};
 	/// # fn job() {}
@@ -170,22 +170,24 @@ impl Scheduler {
 	/// let mut scheduler = Scheduler::new();
 	/// every(10).minutes()?.run(&mut scheduler, job)?;
 	/// // Subtract one - we're already partway through the first second, so there's 599 left.
-	/// assert_eq!(scheduler.idle_seconds().unwrap(), 10 * 60 - 1);
+	/// assert_eq!(scheduler.idle_seconds()?.unwrap(), 10 * 60 - 1);
 	/// # Ok(())
 	/// # }
 	/// ```
 	#[must_use]
-	pub fn idle_seconds(&self) -> Option<i64> {
-		println!("now: {}", self.now());
-		println!("next_run: {}", self.next_run().unwrap_or_default());
-		Some(
-			self.now()
-				.until(&self.next_run()?)
-				.unwrap()
-				.round(SpanRound::new().largest(Unit::Second))
-				.unwrap()
-				.get_seconds(),
-		)
+	pub fn idle_seconds(&self) -> Result<Option<i64>> {
+		let seconds = self
+			.next_run()
+			.map(|zdt| {
+				Ok::<_, crate::Error>(
+					self.now()
+						.until(zdt)?
+						.round(SpanRound::new().largest(Unit::Second))?
+						.get_seconds(),
+				)
+			})
+			.transpose()?;
+		Ok(seconds)
 	}
 
 	/// Get the most recently added job, for testing
@@ -235,16 +237,16 @@ mod tests {
 	fn test_two_jobs() -> Result<()> {
 		let mut scheduler = setup();
 
-		assert_eq!(scheduler.idle_seconds(), None);
+		assert_eq!(scheduler.idle_seconds().unwrap(), None);
 
 		every(17).seconds()?.run(&mut scheduler, job)?;
-		assert_eq!(scheduler.idle_seconds(), Some(17));
+		assert_eq!(scheduler.idle_seconds().unwrap(), Some(17));
 
 		every_single().minute()?.run(&mut scheduler, job)?;
-		assert_eq!(scheduler.idle_seconds(), Some(17));
+		assert_eq!(scheduler.idle_seconds().unwrap(), Some(17));
 		assert_eq!(
 			scheduler.next_run(),
-			Some(START.checked_add(17.seconds()).unwrap())
+			Some(&START.checked_add(17.seconds()).unwrap())
 		);
 
 		scheduler.add_duration(17.seconds());
@@ -252,32 +254,32 @@ mod tests {
 		println!("after one: {}", scheduler.now());
 		assert_eq!(
 			scheduler.next_run(),
-			Some(START.checked_add((17 * 2).seconds()).unwrap())
+			Some(&START.checked_add((17 * 2).seconds()).unwrap())
 		);
 
 		scheduler.add_duration(17.seconds());
 		scheduler.run_pending()?;
 		assert_eq!(
 			scheduler.next_run(),
-			Some(START.checked_add((17 * 3).seconds()).unwrap())
+			Some(&START.checked_add((17 * 3).seconds()).unwrap())
 		);
 
 		// This time, we should hit the minute mark next, not the next 17 second mark
 		scheduler.add_duration(17.seconds());
 		scheduler.run_pending()?;
-		assert_eq!(scheduler.idle_seconds(), Some(9));
+		assert_eq!(scheduler.idle_seconds().unwrap(), Some(9));
 		assert_eq!(
 			scheduler.next_run(),
-			Some(START.checked_add(1.minutes()).unwrap())
+			Some(&START.checked_add(1.minutes()).unwrap())
 		);
 
 		// Afterwards, back to the 17 second job
 		scheduler.add_duration(9.seconds());
 		scheduler.run_pending()?;
-		assert_eq!(scheduler.idle_seconds(), Some(8));
+		assert_eq!(scheduler.idle_seconds().unwrap(), Some(8));
 		assert_eq!(
 			scheduler.next_run(),
-			Some(START.checked_add((17 * 4).seconds()).unwrap())
+			Some(&START.checked_add((17 * 4).seconds()).unwrap())
 		);
 
 		Ok(())
