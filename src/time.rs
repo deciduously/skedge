@@ -8,7 +8,7 @@ pub(crate) trait Timekeeper: std::fmt::Debug {
 	fn now(&self) -> Zoned;
 	/// Add a specific duration for testing purposes
 	#[cfg(test)]
-	fn add_duration(&mut self, duration: impl Into<jiff::ZonedArithmetic>);
+	fn add_duration(&mut self, duration: impl Into<jiff::ZonedArithmetic>) -> crate::Result<()>;
 }
 
 #[derive(Debug, Default)]
@@ -29,7 +29,7 @@ impl Timekeeper for Clock {
 	}
 
 	#[cfg(test)]
-	fn add_duration(&mut self, duration: impl Into<jiff::ZonedArithmetic>) {
+	fn add_duration(&mut self, duration: impl Into<jiff::ZonedArithmetic>) -> crate::Result<()> {
 		match self {
 			Clock::Real => unreachable!(),
 			Clock::Mock(mock) => mock.add_duration(duration),
@@ -38,6 +38,7 @@ impl Timekeeper for Clock {
 }
 
 /// Jobs can be periodic over one of these units of time
+// FIXME can I use a jiff type instead?
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Unit {
 	Second,
@@ -114,8 +115,9 @@ pub mod mock {
 			self.instant.clone()
 		}
 
-		fn add_duration(&mut self, duration: impl Into<ZonedArithmetic>) {
-			self.instant = self.instant.checked_add(duration).unwrap();
+		fn add_duration(&mut self, duration: impl Into<ZonedArithmetic>) -> crate::Result<()> {
+			self.instant = self.instant.checked_add(duration)?;
+			Ok(())
 		}
 	}
 }

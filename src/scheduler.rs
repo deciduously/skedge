@@ -135,7 +135,7 @@ impl Scheduler {
 		}
 	}
 
-	/// Grab the next upcoming timestamp
+	/// Grab the next upcoming timestamp.
 	/// ```rust
 	/// # use skedge::{every, Scheduler};
 	/// # use jiff::ToSpan as _;
@@ -176,18 +176,18 @@ impl Scheduler {
 	/// ```
 	#[must_use]
 	pub fn idle_seconds(&self) -> Result<Option<i64>> {
-		let seconds = self
+		let seconds_until_next_run = self
 			.next_run()
 			.map(|zdt| {
-				Ok::<_, crate::Error>(
-					self.now()
-						.until(zdt)?
-						.round(SpanRound::new().largest(Unit::Second))?
-						.get_seconds(),
-				)
+				let seconds = self
+					.now()
+					.until(zdt)?
+					.round(SpanRound::new().largest(Unit::Second))?
+					.get_seconds();
+				Ok::<_, crate::Error>(seconds)
 			})
 			.transpose()?;
-		Ok(seconds)
+		Ok(seconds_until_next_run)
 	}
 
 	/// Get the most recently added job, for testing
@@ -206,7 +206,7 @@ impl Timekeeper for Scheduler {
 	}
 
 	#[cfg(test)]
-	fn add_duration(&mut self, duration: impl Into<jiff::ZonedArithmetic>) {
+	fn add_duration(&mut self, duration: impl Into<jiff::ZonedArithmetic>) -> Result<()> {
 		self.clock.add_duration(duration)
 	}
 }
@@ -237,19 +237,19 @@ mod tests {
 	fn test_two_jobs() -> Result<()> {
 		let mut scheduler = setup();
 
-		assert_eq!(scheduler.idle_seconds().unwrap(), None);
+		assert_eq!(scheduler.idle_seconds()?, None);
 
 		every(17).seconds()?.run(&mut scheduler, job)?;
-		assert_eq!(scheduler.idle_seconds().unwrap(), Some(17));
+		assert_eq!(scheduler.idle_seconds()?, Some(17));
 
 		every_single().minute()?.run(&mut scheduler, job)?;
-		assert_eq!(scheduler.idle_seconds().unwrap(), Some(17));
+		assert_eq!(scheduler.idle_seconds()?, Some(17));
 		assert_eq!(
 			scheduler.next_run(),
 			Some(&START.checked_add(17.seconds()).unwrap())
 		);
 
-		scheduler.add_duration(17.seconds());
+		scheduler.add_duration(17.seconds())?;
 		scheduler.run_pending()?;
 		println!("after one: {}", scheduler.now());
 		assert_eq!(
@@ -257,7 +257,7 @@ mod tests {
 			Some(&START.checked_add((17 * 2).seconds()).unwrap())
 		);
 
-		scheduler.add_duration(17.seconds());
+		scheduler.add_duration(17.seconds())?;
 		scheduler.run_pending()?;
 		assert_eq!(
 			scheduler.next_run(),
@@ -265,18 +265,18 @@ mod tests {
 		);
 
 		// This time, we should hit the minute mark next, not the next 17 second mark
-		scheduler.add_duration(17.seconds());
+		scheduler.add_duration(17.seconds())?;
 		scheduler.run_pending()?;
-		assert_eq!(scheduler.idle_seconds().unwrap(), Some(9));
+		assert_eq!(scheduler.idle_seconds()?, Some(9));
 		assert_eq!(
 			scheduler.next_run(),
 			Some(&START.checked_add(1.minutes()).unwrap())
 		);
 
 		// Afterwards, back to the 17 second job
-		scheduler.add_duration(9.seconds());
+		scheduler.add_duration(9.seconds())?;
 		scheduler.run_pending()?;
-		assert_eq!(scheduler.idle_seconds().unwrap(), Some(8));
+		assert_eq!(scheduler.idle_seconds()?, Some(8));
 		assert_eq!(
 			scheduler.next_run(),
 			Some(&START.checked_add((17 * 4).seconds()).unwrap())
@@ -421,15 +421,15 @@ mod tests {
 			.until(deadline)?
 			.run(&mut scheduler, job)?;
 		assert_eq!(scheduler.most_recent_job().unwrap().call_count, 0);
-		scheduler.add_duration(5.seconds());
+		scheduler.add_duration(5.seconds())?;
 		scheduler.run_pending()?;
 		assert_eq!(scheduler.most_recent_job().unwrap().call_count, 1);
 		assert_eq!(scheduler.jobs.len(), 1);
-		scheduler.add_duration(5.seconds());
+		scheduler.add_duration(5.seconds())?;
 		scheduler.run_pending()?;
 		assert_eq!(scheduler.jobs.len(), 1);
 		assert_eq!(scheduler.most_recent_job().unwrap().call_count, 2);
-		scheduler.add_duration(5.seconds());
+		scheduler.add_duration(5.seconds())?;
 		scheduler.run_pending()?;
 		// TODO - how to test to ensure the job did not run?
 		// FIXME - job doesnt disappear?
@@ -443,7 +443,7 @@ mod tests {
 			.seconds()?
 			.until(deadline)?
 			.run(&mut scheduler, job)?;
-		scheduler.add_duration(5.seconds());
+		scheduler.add_duration(5.seconds())?;
 		scheduler.run_pending()?;
 		// TODO - how to test to ensure the job did not run?
 		assert_eq!(scheduler.jobs.len(), 0);
