@@ -244,8 +244,8 @@ impl Job {
 	/// # fn job() {}
 	/// # fn main() -> Result<()> {
 	/// # let mut scheduler = Scheduler::new();
-	/// use chrono::Duration;
-	/// let deadline = chrono::Local::now() + Duration::minutes(10);
+	/// use jiff::{ToSpan, Zoned};
+	/// let deadline = Zoned::now().checked_add(10.minutes())?;
 	/// every_single().minute()?.at(":15")?.until(deadline)?.run(&mut scheduler, job)?;
 	/// # Ok(())
 	/// # }

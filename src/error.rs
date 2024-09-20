@@ -4,7 +4,7 @@ use crate::Unit;
 use jiff::civil::Weekday;
 use thiserror::Error;
 
-#[derive(Debug, PartialEq, Error)]
+#[derive(Debug, Error)]
 pub enum Error {
 	#[error("Tried to reference this job's inner subroutine but failed")]
 	CallableUnreachable,
@@ -24,8 +24,6 @@ pub enum Error {
 	InvalidHourlyAtStr,
 	#[error("Invalid time format for minutely job (valid format is :SS)")]
 	InvalidMinuteAtStr,
-	#[error("Invalid hms values for civil::Time ({0},{1},{2})")]
-	InvalidCivilTime(i8, i8, i8),
 	#[error("Invalid string format for until()")]
 	InvalidUntilStr,
 	#[error("Cannot schedule a job to run until a time in the past")]
@@ -40,6 +38,8 @@ pub enum Error {
 	UnitUnreachable,
 	#[error("Attempted to use a start day for a unit other than `weeks`")]
 	StartDayError,
+	#[error("{0}")]
+	Jiff(#[from] jiff::Error),
 	#[error("{0}")]
 	ParseInt(#[from] std::num::ParseIntError),
 	#[error("Scheduling jobs on {0:?} is only allowed for weekly jobs.  Using specific days on a job scheduled to run every 2 or more weeks is not supported")]

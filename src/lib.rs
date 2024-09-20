@@ -18,7 +18,7 @@
 //! Instantiate a `Scheduler` and schedule jobs:
 //! ```rust
 //! # use skedge::{Scheduler, every, every_single};
-//! # use jiff::Zoned;
+//! # use jiff::{ToSpan, Zoned};
 //! # use std::time::Duration;
 //! # use std::thread::sleep;
 //! # fn job() {
@@ -41,7 +41,7 @@
 //! every(2)
 //!     .to(8)?
 //!     .seconds()?
-//!     .until(Zoned::now() + Duration::from_secs(30))?
+//!     .until(Zoned::now().checked_add(30.seconds())?)?
 //!     .run_one_arg(&mut schedule, greet, "Cool Person")?;
 //! #   Ok(())
 //! # }

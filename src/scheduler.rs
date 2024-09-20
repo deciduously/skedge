@@ -1,7 +1,7 @@
 //! The scheduler is responsible for managing all scheduled jobs.
 
 use crate::{Clock, Job, Result, Tag, Timekeeper};
-use jiff::Zoned;
+use jiff::{SpanRound, Unit, Zoned};
 use tracing::debug;
 
 /// A Scheduler creates jobs, tracks recorded jobs, and executes jobs.
@@ -138,12 +138,13 @@ impl Scheduler {
 	/// Grab the next upcoming timestamp
 	/// ```rust
 	/// # use skedge::{every, Scheduler};
+	/// # use jiff::ToSpan;
 	/// # fn job() {}
 	/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 	/// let mut scheduler = Scheduler::new();
 	/// every(10).minutes()?.run(&mut scheduler, job)?;
-	/// let expected = chrono::Local::now() + chrono::Duration::minutes(10);
-	/// assert!(scheduler.next_run().unwrap() - expected < chrono::Duration::microseconds(1));
+	/// let expected = jiff::Zoned::now().checked_add(10.minutes())?;
+	/// assert!(scheduler.next_run().unwrap() == expected);
 	/// # Ok(())
 	/// # }
 	/// ```
@@ -175,7 +176,16 @@ impl Scheduler {
 	/// ```
 	#[must_use]
 	pub fn idle_seconds(&self) -> Option<i64> {
-		Some(self.next_run()?.since(&self.now()).unwrap().get_seconds())
+		println!("now: {}", self.now());
+		println!("next_run: {}", self.next_run().unwrap_or_default());
+		Some(
+			self.now()
+				.until(&self.next_run()?)
+				.unwrap()
+				.round(SpanRound::new().largest(Unit::Second))
+				.unwrap()
+				.get_seconds(),
+		)
 	}
 
 	/// Get the most recently added job, for testing
