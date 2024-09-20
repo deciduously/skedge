@@ -1,6 +1,7 @@
 //! A Job is a piece of work that can be configured and added to the scheduler
 
 use jiff::{civil, Span, Zoned};
+#[cfg(feature = "random")]
 use rand::prelude::*;
 use regex::Regex;
 use std::{
@@ -58,6 +59,7 @@ pub struct Job {
 	/// A quantity of a given time unit
 	interval: Interval, // pause interval * unit between runs
 	/// Upper limit to interval for randomized job timing
+	#[cfg(feature = "random")]
 	latest: Option<Interval>,
 	/// The actual function to execute
 	job: Option<Box<dyn Callable>>,
@@ -87,6 +89,7 @@ impl Job {
 	pub fn new(interval: Interval) -> Self {
 		Self {
 			interval,
+			#[cfg(feature = "random")]
 			latest: None,
 			job: None,
 			tags: HashSet::new(),
@@ -222,6 +225,7 @@ impl Job {
 	/// # Errors
 	///
 	/// Returns an error if the upper bound passed is smaller than the original.
+	#[cfg(feature = "random")]
 	pub fn to(mut self, latest: Interval) -> Result<Self> {
 		if latest <= self.interval {
 			Err(Error::InvalidInterval)
@@ -869,14 +873,19 @@ impl Job {
 	/// Compute the timestamp for the next run
 	fn schedule_next_run(&mut self, now: &Zoned) -> Result<()> {
 		// If "latest" is set, find the actual interval for this run, otherwise just used stored val
-		let interval = match self.latest {
-			Some(v) => {
-				if v < self.interval {
-					return Err(Error::InvalidInterval);
-				}
-				thread_rng().gen_range(self.interval..v)
-			},
-			None => self.interval,
+		let interval = {
+			#[cfg(feature = "random")]
+			match self.latest {
+				Some(v) => {
+					if v < self.interval {
+						return Err(Error::InvalidInterval);
+					}
+					thread_rng().gen_range(self.interval..v)
+				},
+				None => self.interval,
+			}
+			#[cfg(not(feature = "random"))]
+			self.interval
 		};
 
 		// Calculate period (Duration)
@@ -1285,6 +1294,7 @@ mod tests {
 	}
 
 	#[test]
+	#[cfg(feature = "random")]
 	fn test_latest_greater_than_interval() {
 		assert_eq!(
 			every(2).to(1).unwrap_err().to_string(),

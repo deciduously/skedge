@@ -18,7 +18,7 @@
 //! Instantiate a `Scheduler` and schedule jobs:
 //! ```rust
 //! # use skedge::{Scheduler, every, every_single};
-//! # use jiff::{ToSpan, Zoned};
+//! # use jiff::{ToSpan as _, Zoned};
 //! # use std::time::Duration;
 //! # use std::thread::sleep;
 //! # fn job() {
@@ -31,13 +31,23 @@
 //! let mut schedule = Scheduler::new();
 //!
 //! every(10).seconds()?.run(&mut schedule, job)?;
+//!
 //! every(10).minutes()?.run(&mut schedule, job)?;
+//!
 //! every_single().hour()?.run(&mut schedule, job)?;
+//!
 //! every_single().day()?.at("10:30")?.run(&mut schedule, job)?;
+//!
+//! #[cfg(feature = "random")]
 //! every(5).to(10)?.minutes()?.run(&mut schedule, job)?;
+//!
 //! every_single().monday()?.run(&mut schedule, job)?;
+//!
 //! every_single().wednesday()?.at("13:15")?.run(&mut schedule, job)?;
+//!
 //! every_single().minute()?.at(":17")?.run(&mut schedule, job)?;
+//!
+//! #[cfg(feature = "random")]
 //! every(2)
 //!     .to(8)?
 //!     .seconds()?

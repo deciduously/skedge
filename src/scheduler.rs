@@ -138,7 +138,7 @@ impl Scheduler {
 	/// Grab the next upcoming timestamp
 	/// ```rust
 	/// # use skedge::{every, Scheduler};
-	/// # use jiff::ToSpan;
+	/// # use jiff::ToSpan as _;
 	/// # fn job() {}
 	/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 	/// let mut scheduler = Scheduler::new();
@@ -211,15 +211,13 @@ impl Timekeeper for Scheduler {
 
 #[cfg(test)]
 mod tests {
-	use std::collections::HashSet;
-
 	use super::*;
 	use crate::{
 		error::Result,
 		every, every_single,
 		time::mock::{Mock, START},
 	};
-	use jiff::{civil, ToSpan};
+	use jiff::{civil, ToSpan as _};
 	use pretty_assertions::assert_eq;
 
 	/// Overshadow scheduler, `every()` and `every_single()` to use our clock instead
@@ -286,12 +284,13 @@ mod tests {
 	}
 
 	#[test]
+	#[cfg(feature = "random")]
 	fn test_time_range() -> Result<()> {
 		let mut scheduler = setup();
 
 		// Set up 100 jobs, store the minute of the next run
 		let num_jobs = 100;
-		let mut minutes = HashSet::with_capacity(num_jobs);
+		let mut minutes = std::collections::HashSet::with_capacity(num_jobs);
 		for _ in 0..num_jobs {
 			every(5).to(30)?.minutes()?.run(&mut scheduler, job)?;
 			minutes.insert(

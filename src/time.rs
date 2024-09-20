@@ -1,6 +1,6 @@
 //! For mocking purposes, access to the current time is controlled directed through this struct.
 
-use jiff::{Span, ToSpan, Zoned};
+use jiff::{Span, ToSpan as _, Zoned};
 use std::fmt;
 
 pub(crate) trait Timekeeper: std::fmt::Debug {

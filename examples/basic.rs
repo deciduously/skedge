@@ -1,6 +1,8 @@
 // Some more varied usage examples.
 
-use jiff::{ToSpan, Zoned};
+#[cfg(feature = "random")]
+use jiff::ToSpan as _;
+use jiff::Zoned;
 use skedge::{every, every_single, Scheduler};
 use std::thread::sleep;
 use std::time::Duration;
@@ -8,14 +10,6 @@ use std::time::Duration;
 fn job() {
 	let now = Zoned::now();
 	println!("Hello, it's {now}!");
-}
-
-fn flirt(name: &str, time: &str, hour: u8, jackpot: i32, restaurant: &str, meal: &str) {
-	println!(
-		"Hello, {name}!  What are you doing {time}?  I'm free around {hour}.  \
-        I just won ${jackpot} off a scratch ticket, you can get anything you want.  \
-        Have you ever been to {restaurant}?  They're getting rave reviews over their {meal}."
-	);
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -29,6 +23,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 	every_single().day()?.at("10:30")?.run(&mut schedule, job)?;
 
+	#[cfg(feature = "random")]
 	every(5).to(10)?.minutes()?.run(&mut schedule, job)?;
 
 	every_single().monday()?.run(&mut schedule, job)?;
@@ -38,20 +33,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 		.at("13:15")?
 		.run(&mut schedule, job)?;
 
+	#[cfg(feature = "random")]
 	every(2)
 		.to(8)?
 		.seconds()?
 		.until(Zoned::now().checked_add(5.seconds()).unwrap())?
-		.run_six_args(
-			&mut schedule,
-			flirt,
-			"Cool Person",
-			"Friday",
-			7,
-			40,
-			"Dorsia",
-			"foraged chanterelle croque monsieur",
-		)?;
+		.run(&mut schedule, job)?;
 
 	let now = Zoned::now();
 	println!("Starting at {now}");
